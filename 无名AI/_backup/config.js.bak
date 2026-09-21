@@ -1,0 +1,914 @@
+import { lib, game, ui, get, ai, _status } from './utils.js';
+ import { zhong } from '../将池/zhong.js';
+ import { fan } from '../将池/fan.js';
+ import { nei } from '../将池/nei.js';
+export let config = {
+	bd1: {
+		clear: true,
+		name: '<hr aria-hidden="true">',
+	},
+	introduction: {
+		name: '<div style="color: #00FFFF">▶扩展介绍（点击展开）</div>',
+		clear: true,
+		onclick() {
+			/** 摘自《搬运自用》 */
+			if (this.config_more === undefined) {
+				const xutou = '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
+				const more = ui.create.div(
+					'.config_more',
+					ui.joint`
+						<div style="font-size: 14px; text-align: left">
+							<span style="font-family: yuanli">
+								本扩展为「无名AI + 决策积分引擎」整合版（v4.0），
+								在 无名AI 基础上整合了代码级收益分析、策略评分、
+								内置小模型、扩展识别与守恒记分体系。
+							</span>
+							<br /><br /><span style="font-family: shousha">
+								<span style="color: #FF3300">注意！</span>
+								本扩展与其他有AI功能的扩展同时打开可能会导致AI错乱。
+								若出现bug建议关闭本扩展后测试以进一步确定问题所在
+							</span>
+							<br /><span style="font-family: xingkai">
+								${xutou}本扩展主要优化了身份局AI和其他一些AI。
+								<br />${xutou}此外，本扩展还添加了查看态度、去除部分小游戏、身份局系列功能、技能嘲讽、武将权重等
+									一系列能在一定程度上增加游戏乐趣的功能；
+									同时还支持复制/粘贴一些难以记忆的扩展配置，便于玩家重装游戏时备份相应数据。
+								<br />${xutou}此外需要解释的就是权重、嘲讽（技能威胁度）有何作用：
+								<br />${xutou}“权重”则是辅助身份局无名AI的，它将帮助内奸AI确定场上形势。
+									因为正常情况下人机只能通过人头数粗略判断局势，显然有些超模武将会影响此判定。
+									为此给这些武将添加更高的权重帮助内奸AI及时认清局势。
+								<br />${xutou}“嘲讽”顾名思义，就是此技能拥有者的嘲讽将额外乘以这个技能的嘲讽值，以此煽动AI集火。
+									上面的“权重”也可以附加此效果，选项为［权重参与效益结算］。
+							</span>
+							<br /><br /><span style="font-family: xingkai">${xutou}具体无名AI内容参见</span>
+							<b>菜单→(选项→)其他→帮助→无名AI</b>
+						</div>
+					`
+				);
+				this.parentNode.insertBefore(more, this.nextSibling);
+				this.config_more = more;
+				this.innerHTML = '<div style="color: #00FFFF">▼扩展介绍（点击折叠）</div>';
+			} else {
+				this.parentNode.removeChild(this.config_more);
+				delete this.config_more;
+				this.innerHTML = '<div style="color: #00FFFF">▶扩展介绍（点击展开）</div>';
+			}
+		},
+	},
+	recommendations: {
+		name: '<div style="color: #00FFFF">▶相关推荐（点击展开）</div>',
+		clear: true,
+		onclick() {
+			/** 摘自《搬运自用》 */
+			if (this.config_more === undefined) {
+				if (typeof game.copyGroup !== 'function') {
+					// 创建复制群号的全局函数
+					game.copyGroup = (name, number) => {
+						game.copy(number, `已成功将${name}群号复制到剪贴板`);
+					};
+				}
+				const groupStyle = 'font-size: 18px; cursor: pointer; text-decoration: underline; color: #1E90FF;';
+				let groups = [
+					['无名杀资源分享群', '518026909'],
+					['无名杀官方联机群', '367932654'],
+					['无名杀代码群', '698319604'],
+					['无名杀官方群Ⅱ', '885209661'],
+					['无名杀官方群Ⅲ', '459406548'],
+					['无名杀官方IV群', '833216087'],
+					['无名杀官方群V', '784030074'],
+					['无名杀官方群VI', '1079533768'],
+					['无名杀官方群VII', '707344364'],
+					['武将diy第九交流区', '693526248'],
+					['无名杀官方群X', '729583887'],
+					['无名杀官方群XII', '500004047'],
+					['无名杀官方群XIII', '752253383'],
+					['无名杀官方群XV', '885656146'],
+					['无名杀官方群XVI', '699978396'],
+					['无名杀官方群XVIII', '514420615'],
+					['无名杀官方群XX', '565580233'],
+					['无名杀内测资源整合群', '1037970212'],
+					];
+				let str = '';
+				for (const arr of groups) {
+					str += `
+						<br /><span style="${groupStyle}" onclick="game.copyGroup('${arr[0]}', '${arr[1]}')">${arr[0]}</span>
+					`;
+				}
+				const more = ui.create.div(
+					'.config_more',
+					ui.joint`
+						<div style="line-height: 24px; text-align: left">
+							<span style="color: #FFFF00; font-size: 14px">
+								本体仓库地址：https://github.com/libnoname/noname
+							</span>
+						</div>
+					`
+				);
+				this.parentNode.insertBefore(more, this.nextSibling);
+				this.config_more = more;
+				this.innerHTML = '<div style="color: #00FFFF">▼相关推荐（点击折叠）</div>';
+			} else {
+				this.parentNode.removeChild(this.config_more);
+				delete this.config_more;
+				this.innerHTML = '<div style="color: #00FFFF">▶相关推荐（点击展开）</div>';
+			}
+		},
+	},
+	bd2: {
+		clear: true,
+		name: '<hr aria-hidden="true">',
+	},
+	// AI局内行为优化
+	aiGameBehaviorFold: {
+		name: '<span style="font-family: xingkai; color: #90EE90">○AI局内行为优化（点击展开）</span>',
+		clear: true,
+		onclick() {
+			if (this.config_more === undefined) {
+				const foldContent = ui.create.div(
+					'.config_more',
+					ui.joint`
+						<!-- 全局无名AI -->
+						
+						<!-- 〖卡牌无名AI〗-->
+						
+						<!-- 残血集火逻辑开关 -->
+						
+						<!-- 身份局无名AI -->
+						
+						<!-- 盲狙AI -->
+						
+						<!-- ai不砍队友 -->
+						<div class="config_item switch-item" data-name="holdFire">
+							<span class="config_name">
+								<span style="font-family: xingkai; color: #90EE90">ai不砍队友</span>
+							</span>
+							<div class="config_intro">
+								<span style="font-size:15px">开启后，AI一般情况下将更不乐意对符合条件的队友使用除【火攻】外的伤害牌</span>
+								<select style="margin-left: 10px; padding: 2px; border-radius: 4px" 
+										onchange="game.saveExtensionConfig('无名AI', 'holdFire', this.value)">
+									<option value="off" ${lib.config.extension_无名AI_holdFire === 'off' ? 'selected' : ''}>
+										关闭
+									</option>
+									<option value="1" ${lib.config.extension_无名AI_holdFire === '1' ? 'selected' : ''}>
+										≤1血队友
+									</option>
+									<option value="2" ${lib.config.extension_无名AI_holdFire === '2' ? 'selected' : ''}>
+										≤2血队友
+									</option>
+									<option value="3" ${lib.config.extension_无名AI_holdFire === '3' ? 'selected' : ''}>
+										≤3血队友
+									</option>
+									<option value="4" ${lib.config.extension_无名AI_holdFire === '4' ? 'selected' : ''}>
+										≤4血队友
+									</option>
+									<option value="hp" ${lib.config.extension_无名AI_holdFire === 'hp' ? 'selected' : ''}>
+										≤其体力值队友
+									</option>
+								</select>
+							</div>
+						</div>
+						<!-- aoe不受砍队友功能影响 -->
+						<div class="config_item switch-item" data-name="ntAoe">
+							<div class="switch-header">
+								<label class="config_switch">
+									<input type="checkbox" ${lib.config.extension_无名AI_ntAoe ? 'checked' : ''}>
+									<span class="config_slider"></span>
+								</label>
+								<span class="config_name">
+									<span style="font-family: xingkai; color: #90EE90">aoe不受砍队友功能影响</span>
+								</span>
+							</div>
+							<div class="config_intro">
+								<span style="font-size:15px">开启后，即使队友残血AI依然会考虑放南蛮万箭</span>
+							</div>
+						</div>
+					`
+				);
+				foldContent.querySelectorAll('.switch-item[data-name] .config_switch input').forEach((checkbox) => {
+					checkbox.addEventListener('change', (e) => {
+						const configKey = e.target.closest('.config_item').dataset.name;
+						if (configKey === 'holdFire') {
+							const select = e.target.closest('.config_item').querySelector('select');
+							game.saveExtensionConfig('无名AI', configKey, select.value);
+						} else {
+							game.saveExtensionConfig('无名AI', configKey, e.target.checked);
+						}
+					});
+				});
+				this.parentNode.insertBefore(foldContent, this.nextSibling);
+				this.config_more = foldContent;
+				this.innerHTML = '<span style="font-family: xingkai; color: #90EE90">●AI局内行为优化（点击折叠）</span>';
+			} else {
+				this.parentNode.removeChild(this.config_more);
+				delete this.config_more;
+				this.innerHTML = '<span style="font-family: xingkai; color: #90EE90">○AI局内行为优化（点击展开）</span>';
+			}
+		},
+	},
+	// AI逻辑优化
+	aiLogicFold: {
+		name: '<span style="font-family: xingkai; color: #00FFFF">○AI逻辑优化（点击展开）</span>',
+		clear: true,
+		onclick() {
+			if (this.config_more === undefined) {
+				const foldContent = ui.create.div(
+					'.config_more',
+					ui.joint`
+						<!-- 卡牌价值优化（开关类） -->
+						<div class="config_item switch-item" data-name="cardValueOpt">
+							<div class="switch-header">
+								<label class="config_switch">
+									<input type="checkbox" ${lib.config.extension_无名AI_cardValueOpt ? 'checked' : ''}>
+									<span class="config_slider"></span>
+								</label>
+								<span class="config_name">
+									<span style="font-family: xingkai; color: #00FFFF">卡牌价值优化</span>
+								</span>
+							</div>
+							<div class="config_intro">
+								<span style="font-size:15px">按牌价值规则优化装备安置，基础牌＞锦囊牌＞装备牌，适配特殊场景</span>
+							</div>
+						</div>
+
+						<!-- 配合技能补充（链接类） -->
+						<div class="config_item link-item">
+							<span class="config_name">
+								<span style="font-family: xingkai; color: #00FFFF">AI配合技能补充</span>
+							</span>
+							<div class="config_intro">
+								<span style="font-size:15px">格式「技能ID/自身条件/目标条件」，示例：leiji/sha/shan*bagua</span>
+							</div>
+							<button class="config_button">点击配置</button>
+						</div>
+
+						<!-- AI技能释放优化（链接类） -->
+						<div class="config_item link-item">
+							<span class="config_name">
+								<span style="font-family: xingkai; color: #00FFFF">AI技能释放优化</span>
+							</span>
+							<div class="config_intro">
+								<span style="font-size:15px">配置无需配合检测/权重判断的技能ID，每行一个</span>
+							</div>
+							<button class="config_button">点击配置</button>
+						</div>
+
+						<!-- 一键还原（链接类） -->
+						<div class="config_item link-item">
+							<span class="config_name">
+								<span style="font-family: xingkai; color: red">一键还原配置</span>
+							</span>
+							<button class="config_button">一键还原</button>
+						</div>
+					`
+				);
+
+				// 卡牌价值优化开关绑定事件
+				foldContent.querySelector('[data-name="cardValueOpt"] .config_switch input').addEventListener('change', (e) => {
+					game.saveExtensionConfig('无名AI', 'cardValueOpt', e.target.checked);
+				});
+
+			foldContent.querySelectorAll('.config_button')[0].addEventListener('click', () => {
+					ui.window.classList.add('shortcutpaused');
+					ui.window.classList.add('systempaused');
+
+					let map = lib.config.extension_无名AI_aiCooperateSkill || [];
+					let initialCode = 'cooperateSkills = [\n';
+					if (map.length > 0) {
+						initialCode += map.map((rule) => `\t"${rule}"`).join(',\n') + '\n';
+					} else {
+						initialCode += `\t"leiji/sha/shan", // 雷击：自身有杀 + 目标有闪\n\t"releiji/sha/shan*bagua", // 雷击目标有闪或八卦阵\n\t"ao_xishi/diamond/none" // 习事：自身有方块牌\n`;
+					}
+					initialCode += '];';
+
+					ui.create.editor({
+						value: initialCode,
+						language: 'javascript',
+						saveInput: (code) => {
+							try {
+								var cooperateSkills = [];
+								eval(code);
+								if (!Array.isArray(cooperateSkills)) throw '需为数组格式';
+								const validRules = cooperateSkills.filter((rule) => {
+									if (typeof rule !== 'string') return false;
+									const parts = rule.split('/');
+									return parts.length === 3 && parts.every((part) => part.trim() !== '');
+								});
+								game.saveExtensionConfig('无名AI', 'aiCooperateSkill', validRules);
+								alert(`配置成功！有效规则${validRules.length}条`);
+							} catch (e) {
+								alert('语法错误：' + e);
+								throw e;
+							}
+						},
+					});
+				});
+
+				// AI技能释放优化按钮绑定事件（逻辑不变）
+				foldContent.querySelectorAll('.config_button')[1].addEventListener('click', () => {
+					ui.window.classList.add('shortcutpaused');
+					ui.window.classList.add('systempaused');
+
+					let map = lib.config.extension_无名AI_aiSkillReleaseOpt || [];
+					let initialCode = 'skillIds = [\n';
+					if (map.length > 0) {
+						initialCode += map.map((id) => `\t"${id}"`).join(',\n') + '\n';
+					} else {
+						initialCode += `\t"fangzhu", // 曹丕放逐\n\t"sbfangzhu" // 同一技能不同ID\n`;
+					}
+					initialCode += '];';
+
+					ui.create.editor({
+						value: initialCode,
+						language: 'javascript',
+						saveInput: (code) => {
+							try {
+								var skillIds = [];
+								eval(code);
+								if (!Array.isArray(skillIds)) throw '需为数组格式';
+								const validIds = skillIds
+									.filter((id) => typeof id === 'string' && id.trim() !== '')
+									.map((id) => id.trim());
+								game.saveExtensionConfig('无名AI', 'aiSkillReleaseOpt', validIds);
+								alert(`配置成功！有效技能ID${validIds.length}个`);
+							} catch (e) {
+								alert('语法错误：' + e);
+								throw e;
+							}
+						},
+					});
+				});
+
+				foldContent.querySelectorAll('.config_button')[2].addEventListener('click', () => {
+					if (!confirm('确定还原所有配合规则和技能释放优化配置？')) return;
+					game.saveExtensionConfig('无名AI', 'aiCooperateSkill', []);
+					game.saveExtensionConfig('无名AI', 'aiSkillReleaseOpt', ['fangzhu', 'sbfangzhu']);
+					document.querySelector('.popup-container.editor')?.delete?.();
+					alert('配置已还原为默认示例！');
+				});
+
+				this.parentNode.insertBefore(foldContent, this.nextSibling);
+				this.config_more = foldContent;
+				this.innerHTML = '<span style="font-family: xingkai; color: #00FFFF">●AI逻辑优化（点击折叠）</span>';
+			} else {
+				this.parentNode.removeChild(this.config_more);
+				delete this.config_more;
+				this.innerHTML = '<span style="font-family: xingkai; color: #00FFFF">○AI逻辑优化（点击展开）</span>';
+			}
+		},
+	},
+
+	// AI强化
+aiEnhanceFold: {
+    name: '<span style="font-family: xingkai; color: #FFD700">○AI强化（点击展开）</span>',
+    clear: true,
+    onclick() {
+        if (this.config_more === undefined) {
+            const foldContent = ui.create.div(
+                '.config_more',
+                ui.joint`
+                    <!--AI强化〔继承〕-->
+                    <div class="config_item switch-item" data-name="aiZhuInherit">
+                        <div class="switch-header">
+                            <label class="config_switch">
+                                <input type="checkbox" ${lib.config.extension_无名AI_aiZhuInherit ? 'checked' : ''}>
+                                <span class="config_slider"></span>
+                            </label>
+                            <span class="config_name">
+                                <span style="font-family: xingkai; color: #FFD700">AI强化〔继承〕</span>
+                            </span>
+                        </div>
+                        <div class="config_intro">
+                            <span style="font-size:15px">
+                                开启后，AI主公死亡时将触发武将继承逻辑，生成继承者延续战局。
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- AI强化〔置换〕--->
+                    <div class="config_item switch-item" data-name="aiEnhanceDiscardDraw">
+                        <div class="switch-header">
+                            <label class="config_switch">
+                                <input type="checkbox" ${lib.config.extension_无名AI_aiEnhanceDiscardDraw ? 'checked' : ''}>
+                                <span class="config_slider"></span>
+                            </label>
+                            <span class="config_name">
+                                <span style="font-family: xingkai; color: #FFD700">AI强化〔置换〕</span>
+                            </span>
+                        </div>
+                        <div class="config_intro">
+                            <span style="font-size:15px">
+                                开启后AI获得增益：每回合限一次，出牌阶段有30%几率可以弃置任意张手牌并摸等量的牌。
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- AI强化〔泣血〕--->
+                    <div class="config_item switch-item" data-name="aiEnhanceTaoHeal">
+                        <div class="switch-header">
+                            <label class="config_switch">
+                                <input type="checkbox" ${lib.config.extension_无名AI_aiEnhanceTaoHeal ? 'checked' : ''}>
+                                <span class="config_slider"></span>
+                            </label>
+                            <span class="config_name">
+                                <span style="font-family: xingkai; color: #FFD700">AI强化〔泣血〕</span>
+                            </span>
+                        </div>
+                        <div class="config_intro">
+                            <span style="font-size:15px">
+                                开启后AI获得增益：使用♥️桃时有20%几率回复值+1。
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- AI强化〔养神〕--->
+                    <div class="config_item switch-item" data-name="aiEnhancePhaseEndDraw">
+                        <div class="switch-header">
+                            <label class="config_switch">
+                                <input type="checkbox" ${lib.config.extension_无名AI_aiEnhancePhaseEndDraw ? 'checked' : ''}>
+                                <span class="config_slider"></span>
+                            </label>
+                            <span class="config_name">
+                                <span style="font-family: xingkai; color: #FFD700">AI强化〔养神〕</span>
+                            </span>
+                        </div>
+                        <div class="config_intro">
+                            <span style="font-size:15px">
+                                开启后AI获得增益：回合结束时有40%几率额外摸1张牌。
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- AI强化〔破甲〕--->
+                    <div class="config_item switch-item" data-name="aiEnhanceIgnoreArmor">
+                        <div class="switch-header">
+                            <label class="config_switch">
+                                <input type="checkbox" ${lib.config.extension_无名AI_aiEnhanceIgnoreArmor ? 'checked' : ''}>
+                                <span class="config_slider"></span>
+                            </label>
+                            <span class="config_name">
+                                <span style="font-family: xingkai; color: #FFD700">AI强化〔破甲〕</span>
+                            </span>
+                        </div>
+                        <div class="config_intro">
+                            <span style="font-size:15px">
+                                开启后AI获得增益：造成伤害时有15%几率无视目标护甲。
+                            </span>
+                        </div>
+                    </div>
+                `
+            );
+            this.parentNode.insertBefore(foldContent, this.nextSibling);
+            this.config_more = foldContent;
+            this.innerHTML = '<span style="font-family: xingkai; color: #FFD700">●AI强化（点击折叠）</span>';
+            foldContent.querySelectorAll('.config_switch input').forEach((checkbox) => {
+                checkbox.addEventListener('change', (e) => {
+                    const configKey = e.target.closest('.config_item').dataset.name;
+                    game.saveExtensionConfig('无名AI', configKey, e.target.checked);
+                });
+            });
+        } else {
+            this.parentNode.removeChild(this.config_more);
+            delete this.config_more;
+            this.innerHTML = '<span style="font-family: xingkai; color: #FFD700">○AI强化（点击展开）</span>';
+        }
+    },
+},
+	// 其他功能
+commonConfigFold: {
+    name: '<span style="font-family: xingkai; color: #FF3300">○常用功能（点击展开）</span>',
+    clear: true,
+    onclick() {
+        if (this.config_more === undefined) {
+            const foldContent = ui.create.div(
+                '.config_more',
+                ui.joint`
+                <div class="config_item link-item" data-name="aiFakeChooseEnable">
+                    <div class="switch-header" style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                        <label class="config_switch">
+                            <input type="checkbox" ${lib.config.extension_无名AI_aiFakeChooseEnable ? 'checked' : ''}>
+                            <span class="config_slider"></span>
+                        </label>
+                        <span class="config_name">
+                            <span style="font-family: xingkai; color: #FF3300">AI伪选开关</span>
+                        </span>
+                    </div>
+                    <div class="config_intro" style="margin-bottom: 12px; padding-left: 40px;"></div>
+                    <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.1); margin: 10px 0;">
+                    <span class="config_name">
+                        <span style="font-family: xingkai; color: #FF3300">AI伪选将池配置</span>
+                    </span>
+                    <div class="config_intro">
+                        <span style="font-size:15px">自定义设置将池，影响AI选将逻辑，可自由补充除主公以外的三个阵营，目前只身份局作为测试板块</span>
+                    </div>
+                    <button class="config_button">打开编辑将池</button>
+                    <div style="margin: 8px 0; display: flex; gap: 8px;">
+                        <button class="config_button" style="flex:1; background-color: white; color: #333; border: 1px solid #ddd; border-radius: 4px; padding: 6px 0; cursor: pointer;">配置打包</button>
+                        <button class="config_button" style="flex:1; background-color: white; color: #333; border: 1px solid #ddd; border-radius: 4px; padding: 6px 0; cursor: pointer;">配置读取</button>
+                    </div>
+                    <div style="margin-top: 8px;">
+                        <span class="config_button" style="padding: 4px 8px; display: inline-block; cursor: pointer; color: #FF6347; border: 1px solid #FF6347; border-radius: 4px;">重置将池</span>
+                    </div>
+                </div>
+                <div class="config_item switch-item" data-name="viewAtt">
+                    <div class="switch-header">
+                        <label class="config_switch">
+                            <input type="checkbox" ${lib.config.extension_无名AI_viewAtt ? 'checked' : ''}>
+                            <span class="config_slider"></span>
+                        </label>
+                        <span class="config_name">
+                            <span style="color: #FF3300">火眼金睛</span>
+                        </span>
+                    </div>
+                    <div class="config_intro">
+                        <span style="font-size:15px">可在顶部菜单栏查看态度</span>
+                    </div>
+                </div>
+                <div class="config_item switch-item" data-name="aiChangeGeneral">
+                    <div class="switch-header">
+                        <label class="config_switch">
+                            <input type="checkbox" ${lib.config.extension_无名AI_aiChangeGeneral ? 'checked' : ''}>
+                            <span class="config_slider"></span>
+                        </label>
+                        <span class="config_name">
+                            <span style="color: #FF3300">AI换将</span>
+                        </span>
+                    </div>
+                    <div class="config_intro">
+                        <span style="font-size:15px">游戏开始时可令一名AI更换武将牌，开启后生效</span>
+                    </div>
+                </div>
+                <div class="config_item switch-item" data-name="rank">
+                    <span class="config_name">
+                        <span style="font-family: xingkai; color: #FF3300">修改武将评级显示</span>
+                    </span>
+                    <div class="config_intro">
+                        <span style="font-size:15px">开启后，将修改武将栏界面中的武将评级显示内容</span>
+                        <select style="margin-left: 10px; padding: 2px; border-radius: 4px" onchange="game.saveExtensionConfig('无名AI', 'rank', this.value)">
+                            <option value="off" ${lib.config.extension_无名AI_rank === 'off' ? 'selected' : ''}>关闭</option>
+                            <option value="wr" ${lib.config.extension_无名AI_rank === 'wr' ? 'selected' : ''}>稀有度</option>
+                            <option value="wd" ${lib.config.extension_无名AI_rank === 'wd' ? 'selected' : ''}>大写汉字</option>
+                            <option value="wx" ${lib.config.extension_无名AI_rank === 'wx' ? 'selected' : ''}>小写汉字</option>
+                            <option value="wp" ${lib.config.extension_无名AI_rank === 'wp' ? 'selected' : ''}>九品制</option>
+                            <option value="tg" ${lib.config.extension_无名AI_rank === 'tg' ? 'selected' : ''}>官方评级</option>
+                            <option value="tz" ${lib.config.extension_无名AI_rank === 'tz' ? 'selected' : ''}>字母评级</option>
+                            <option value="tq" ${lib.config.extension_无名AI_rank === 'tq' ? 'selected' : ''}>混合评级</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="config_item switch-item" data-name="removeMini">
+                    <div class="switch-header">
+                        <label class="config_switch">
+                            <input type="checkbox" ${lib.config.extension_无名AI_removeMini ? 'checked' : ''}>
+                            <span class="config_slider"></span>
+                        </label>
+                        <span class="config_name">
+                            <span style="color: #FF3300">去除本体武将小游戏</span>
+                        </span>
+                    </div>
+                    <div class="config_intro">
+                        <span style="font-size:15px">去除手杀马钧〖巧思〗等小游戏，重启生效（注意：若有其他拓展修改对应技能可能报错，关闭此选项即可）</span>
+                    </div>
+                </div>
+                <div class="config_item switch-item" data-name="findZhong">
+                    <div class="switch-header">
+                        <label class="config_switch">
+                            <input type="checkbox" ${lib.config.extension_无名AI_findZhong ? 'checked' : ''}>
+                            <span class="config_slider"></span>
+                        </label>
+                        <span class="config_name">
+                            <span style="color: #FF3300">慧眼识忠</span>
+                        </span>
+                    </div>
+                    <div class="config_intro">
+                        <span style="font-size:15px">主公开局知道一名忠臣身份</span>
+                    </div>
+                </div>
+                <div class="config_item switch-item" data-name="neiKey">
+                    <span class="config_name">
+                        <span style="font-family: xingkai; color: #FF3300">内奸可亮明身份</span>
+                    </span>
+                    <div class="config_intro">
+                        <span style="font-size:15px">内奸可在出牌阶段亮明身份并加1点体力上限，建议与［身份局无名AI］搭配使用<span style="color: #FF3300">不然会显得非常无脑</span></span>
+                        <select style="margin-left: 10px; padding: 2px; border-radius: 4px" onchange="game.saveExtensionConfig('无名AI', 'neiKey', this.value)">
+                            <option value="off" ${lib.config.extension_无名AI_neiKey === 'off' ? 'selected' : ''}>关闭</option>
+                            <option value="can" ${lib.config.extension_无名AI_neiKey === 'can' ? 'selected' : ''}>未暴露可亮</option>
+                            <option value="must" ${lib.config.extension_无名AI_neiKey === 'must' ? 'selected' : ''}>暴露也可亮</option>
+                        </select>
+                    </div>
+                </div>
+                `
+            );
+            foldContent.querySelectorAll('.switch-item[data-name] .config_switch input').forEach((checkbox) => {
+                checkbox.addEventListener('change', (e) => {
+                    const configKey = e.target.closest('.config_item').dataset.name;
+                    if (configKey === 'rank' || configKey === 'neiKey' || configKey === 'holdFire') {
+                        const select = e.target.closest('.config_item').querySelector('select');
+                        game.saveExtensionConfig('无名AI', configKey, select ? select.value : e.target.checked);
+                    } else {
+                        game.saveExtensionConfig('无名AI', configKey, e.target.checked);
+                    }
+                });
+            });
+            foldContent.querySelectorAll('.config_button')[0].addEventListener('click', () => {
+                ui.window.classList.add('shortcutpaused');
+                ui.window.classList.add('systempaused');
+                let map = lib.config.extension_无名AI_aiFakeChoose || {
+                    zhong: ['dc_liuli', 'jd_sb_jiangwei', 're_guanyu'],
+                    fan: ['re_zhangfei', 'sb_xuhuang', 'sb_lvmeng'],
+                    nei: ['zuoci', 'gz_zuoci', 'huan_luxun']
+                };
+                let initialCode = 'aiFakeChoose = {\n';
+                initialCode += `\tzhong: [${map.zhong.map(id => `"${id}"`).join(', ')}],\n`;
+                initialCode += `\tfan: [${map.fan.map(id => `"${id}"`).join(', ')}],\n`;
+                initialCode += `\tnei: [${map.nei.map(id => `"${id}"`).join(', ')}]\n`;
+                initialCode += '};';
+                ui.create.editor({
+                    value: initialCode,
+                    language: 'javascript',
+                    saveInput: (code) => {
+                        try {
+                            var aiFakeChoose = {};
+                            eval(code);
+                            if (Object.prototype.toString.call(aiFakeChoose) !== '[object Object]') throw '需为对象格式';
+                            const validConfig = {};
+                            ['zhong', 'fan', 'nei'].forEach(key => {
+                                validConfig[key] = Array.isArray(aiFakeChoose[key]) ? aiFakeChoose[key].filter(id => typeof id === 'string' && id.trim() !== '').map(id => id.trim()) : [];
+                            });
+                            game.saveExtensionConfig('无名AI', 'aiFakeChoose', validConfig);
+                            alert(`配置成功！忠臣${validConfig.zhong.length}名|反贼${validConfig.fan.length}名|内奸${validConfig.nei.length}名`);
+                        } catch (e) {
+                            alert('语法错误：' + e);
+                            throw e;
+                        }
+                    },
+                });
+            });
+            foldContent.querySelectorAll('.config_button')[1].addEventListener('click', () => {
+                if (typeof cordova === 'undefined' || !cordova.file?.externalApplicationStorageDirectory) {
+                    alert('仅支持手机端(Cordova)操作！');
+                    return;
+                }
+                const TARGET_DIR_MOBILE = `${cordova.file.externalApplicationStorageDirectory}extension/无名AI/将池`;
+                const targetDir = TARGET_DIR_MOBILE.slice(27);
+                const aiData = lib.config.extension_无名AI_aiFakeChoose || { zhong: [], fan: [], nei: [] };
+                const fileList = [
+                    { name: 'zhong.js', data: aiData.zhong, key: 'zhong' },
+                    { name: 'fan.js', data: aiData.fan, key: 'fan' },
+                    { name: 'nei.js', data: aiData.nei, key: 'nei' }
+                ];
+                const rootDirPath = cordova.file.externalRootDirectory || '/';
+                function createDirRecursive(currentDir, dirs, callback) {
+                    if (dirs.length === 0) { callback(currentDir); return; }
+                    const nextDir = dirs.shift();
+                    currentDir.getDirectory(nextDir, { create: true, exclusive: false }, (newDir) => {
+                        createDirRecursive(newDir, dirs, callback);
+                    }, (err) => { callback(null, err.message); });
+                }
+                function writeFile(fileEntry, content, callback) {
+                    fileEntry.createWriter((fileWriter) => {
+                        fileWriter.onwriteend = function() {
+                            this.seek(0);
+                            const blob = new Blob([content], { type: 'text/javascript' });
+                            this.write(blob);
+                            this.onwriteend = () => callback(true);
+                        };
+                        fileWriter.onerror = (e) => callback(false, e.target.error.message);
+                        fileWriter.truncate(0);
+                    }, (err) => callback(false, err.message));
+                }
+                window.resolveLocalFileSystemURL(rootDirPath, (rootDir) => {
+                    createDirRecursive(rootDir, targetDir.split('/'), (targetDirEntry, err) => {
+                        if (!targetDirEntry) {
+                            alert(`创建目录失败：${err}`);
+                            return;
+                        }
+                        let successCount = 0;
+                        fileList.forEach((file) => {
+                            const fileContent = `window.${file.key} = ${JSON.stringify(file.data, null, 2)}; export const ${file.key} = window.${file.key};`;
+                            targetDirEntry.getFile(file.name, { create: true, exclusive: false }, (fileEntry) => {
+                                writeFile(fileEntry, fileContent, (ok, errMsg) => {
+                                    if (ok) successCount++;
+                                    if (successCount === fileList.length) {
+                                        alert('配置打包成功！已生成extension/将池/zhong|nei|fan.js（含导出）');
+                                    } else if (errMsg) {
+                                        alert(`写入${file.name}失败：${errMsg}`);
+                                    }
+                                });
+                            }, (err) => alert(`创建${file.name}失败：${err.message}`));
+                        });
+                    });
+                }, (err) => alert(`获取根目录失败：${err.message}`));
+            });
+            foldContent.querySelectorAll('.config_button')[2].addEventListener('click', () => {
+                if (!confirm('确定读取将池文件并覆盖本地配置？')) return;
+                try {
+                    const validConfig = {};
+                    ['zhong', 'fan', 'nei'].forEach(key => {
+                        const data = window[key] || eval(key);
+                        validConfig[key] = Array.isArray(data) ? data.filter(id => typeof id === 'string' && id.trim() !== '').map(id => id.trim()) : [];
+                    });
+                    game.saveExtensionConfig('无名AI', 'aiFakeChoose', validConfig);
+                    alert(`配置读取成功！
+忠臣：${validConfig.zhong.length}名
+反贼：${validConfig.fan.length}名
+内奸：${validConfig.nei.length}名`);
+                } catch (e) {
+                    alert(`读取失败：${e.message}`);
+                }
+            });
+            const resetLink = foldContent.querySelector('.config_item.link-item span.config_button:last-child');
+            resetLink.addEventListener('click', () => {
+                if (confirm('确定要重置AI伪选将池到初始默认配置吗？')) {
+                    const defaultConfig = {
+                        zhong: ['dc_liuli', 'jd_sb_jiangwei', 're_guanyu'],
+                        fan: ['re_zhangfei', 'sb_xuhuang', 'sb_lvmeng'],
+                        nei: ['zuoci', 'gz_zuoci', 'huan_luxun']
+                    };
+                    game.saveExtensionConfig('无名AI', 'aiFakeChoose', defaultConfig);
+                    alert('将池已重置为初始默认配置！');
+                }
+            });
+            this.parentNode.insertBefore(foldContent, this.nextSibling);
+            this.config_more = foldContent;
+            this.innerHTML = '<span style="font-family: xingkai; color: #FF3300">●常用功能（点击折叠）</span>';
+        } else {
+            this.parentNode.removeChild(this.config_more);
+            delete this.config_more;
+            this.innerHTML = '<span style="font-family: xingkai; color: #FF3300">○常用功能（点击展开）</span>';
+        }
+    },
+},
+	exportPz: {
+		name: '复制本扩展配置',
+		clear: true,
+		onclick() {
+			let txt = '{';
+			for (let i in lib.config) {
+				if (!i.indexOf('extension_无名AI_')) {
+					txt += '\r	b' + i.slice(15) + ' : ' + JSON.stringify(lib.config[i]).replace('\n', '\r') + ',';
+				} else if (!i.indexOf('aiyh_character_skill_id_')) {
+					txt += '\r	s' + i.slice(24) + ' : ' + JSON.stringify(lib.config[i]).replace('\n', '\r') + ',';
+				}
+			}
+			txt += '\r}';
+			game.copy(txt, '『无名AI』配置已成功复制到剪切板，请您及时粘贴保存');
+		},
+	},
+	loadPz: {
+		name: '载入本扩展配置',
+		clear: true,
+		onclick() {
+			ui.window.classList.add('shortcutpaused');
+			ui.window.classList.add('systempaused');
+
+			let initialCode = '//完整粘贴你保存的『无名AI』配置到等号右端\n_status.aiyh_config = ';
+
+			ui.create.editor({
+				value: initialCode,
+				language: 'javascript',
+				saveInput: (code) => {
+					try {
+						eval(code);
+						if (Object.prototype.toString.call(_status.aiyh_config) !== '[object Object]') {
+							throw new Error('配置格式错误：类型不为[object Object]');
+						}
+
+						for (let i in _status.aiyh_config) {
+							let j;
+							if (i[0] === 'b') j = 'extension_无名AI_' + i.slice(1);
+							else j = 'aiyh_character_skill_id_' + i.slice(1);
+							game.saveConfig(j, _status.aiyh_config[i]);
+						}
+
+						alert('配置已成功载入！即将重启游戏');
+						game.reload();
+					} catch (e) {
+						if (e.message?.includes('类型不为[object Object]')) {
+							alert(e.message);
+						} else {
+							alert('代码语法有错误，请仔细检查（' + e + '）');
+						}
+						throw e;
+					}
+				},
+			});
+		},
+	},
+	tip1: {
+		clear: true,
+		name: ui.joint`
+			<div style="display: flex; justify-content: center">内奸权重策略</div>
+			<br /><span style="color: #FF3300">注意！</span>
+				通过以下功能设置的权重将<span style="color: #FFFF00">优先</span>
+				作为<span style="color: #00FFFF">内奸AI</span>判断场上角色实力的参考
+		`,
+	},
+takeQz: {
+		name: '胜率代替权重',
+		intro: '开启后，内奸AI分析局势时将检查场上武将所选身份/阵营对应胜负统计总场数是否满足上一选项条件，如果满足则用胜率换算值代替原有权重',
+		init: false,
+		onclick(bool) {
+			if (
+				!bool ||
+				typeof game.purifySFConfig === 'function' ||
+				confirm('检测到《胜负统计》未安装/未开启，此功能暂无效果，是否依然开启此功能？')
+			) {
+				game.saveExtensionConfig('无名AI', 'takeQz', bool);
+			}
+		},
+	},
+	min: {
+		name: '<span style="font-family: xingkai">只利用总场数不少于</font>',
+		intro: '请先开启［胜率代替权重］。内奸AI将优先采用符合本配置数值的数据作为武将权重计算',
+		init: '10',
+		input: true,
+		onblur(e) {
+			let text = e.target,
+				num = Number(text.innerText);
+			if (isNaN(num)) num = 10;
+			else if (num < 0) num = 0;
+			else if (!Number.isInteger(num)) num = Math.round(num);
+			text.innerText = num;
+			game.saveExtensionConfig('无名AI', 'min', num);
+		},
+	},
+editQz: {
+		name: '编辑武将权重',
+		clear: true,
+		onclick() {
+			ui.window.classList.add('shortcutpaused');
+			ui.window.classList.add('systempaused');
+
+			let map = lib.config.extension_无名AI_qz || {};
+			let initialCode = 'weight = {';
+			let len = false;
+
+			for (let i in map) {
+				len = true;
+				initialCode += '\n\t"' + i + '": ' + map[i] + ',';
+			}
+
+			if (!localStorage.getItem('weight_alerted')) {
+				localStorage.setItem('weight_alerted', true);
+				initialCode += '\n\t"shen_zhugeliang": 1.75,\n\t"liangxing": 1.57,';
+				len = true;
+				alert('检测到您首次使用此功能，系统将自动为您补充两个内置样例武将权重作为样例参考（点“取消”不会保存此样例）');
+			}
+
+			initialCode += '\n};';
+			if (len) initialCode += '\n//请按照上面的写法规则进行编辑，或借此复制/粘贴内容以备份/还原配置\n//请务必使用英文标点符号！';
+
+			ui.create.editor({
+				value: initialCode,
+				language: 'javascript',
+				saveInput: (code) => {
+					try {
+						var weight;
+						eval(code);
+						if (Object.prototype.toString.call(weight) !== '[object Object]') {
+							throw new Error('配置格式错误：类型不为[object Object]');
+						}
+						game.saveExtensionConfig('无名AI', 'qz', weight);
+					} catch (e) {
+						if (e.message?.includes('类型不为[object Object]')) {
+							alert(e.message);
+						} else {
+							alert('代码语法有错误，请仔细检查（' + e + '）');
+						}
+						throw e;
+					}
+				},
+			});
+		},
+	},
+	clearQz: {
+		name: '清空设置的武将权重',
+		clear: true,
+		onclick() {
+			let xs = 0;
+			for (let i in lib.config.extension_无名AI_qz) {
+				xs++;
+			}
+			if (confirm('您确定要清空所有通过上述功能设置的武将权重（共' + xs + '项）？')) {
+				game.saveExtensionConfig('无名AI', 'qz', {});
+				alert('清除成功');
+			}
+		},
+	},
+bd3: {
+		name: '<hr aria-hidden="true">',
+		clear: true,
+	},
+	/* ===== 决策积分引擎（整合模块）参数 ===== */
+	djscBd: { clear: true, name: '<hr aria-hidden="true"><div style="color: #00FFB0; text-align:center">▶ 决策积分引擎（记分+评分框架+小模型）</div>' },
+	decisionScore: { name: '决策积分引擎开关（记分+策略评分+小模型+扩展识别）', init: true },
+	mode: { name: '决策模式（模型+规则 / 纯规则 / 纯小模型）', item: { mix: '策略+小模型(推荐)', rules: '纯策略规则', mini: '纯小模型' }, init: 'mix' },
+	atkBias: { name: '进攻倾向（偏置，越高越激进）', range: [0.5, 1.5, 0.1], init: 1 },
+	defBias: { name: '防守倾向（偏置，越高越保守）', range: [0.5, 1.5, 0.1], init: 1 },
+	dmgRate: { name: '伤害分值倍率（默认2分/点）', range: [0.5, 4, 0.1], init: 1 },
+	drawRate: { name: '摸牌分值倍率（默认1分/张）', range: [0.5, 4, 0.1], init: 1 },
+	discardRate: { name: '弃牌惩罚倍率（默认-1.5/张）', range: [0.5, 4, 0.1], init: 1 },
+	showLog: { name: '对局日志显示积分明细', init: true },
+	persist: { name: '结算保存历史（localStorage，可随备份导出）', init: true },
+
+};

@@ -1,0 +1,8 @@
+{
+	"name": "无名AI",
+	"author": "",
+	"intro": "<span style='color: #00FFB0'>无名AI · 决策积分引擎版 v4.13</span><br /><span style='color: #00FFFF'>更新日期</span>：2026年9月18日<br /><span style='color: #00FFB0'>扩展当前版本号</span>：<span style='color: #FFFF00'>4.13.1</span><br /><span style='color: #00FFB0'>支持本体最低版本号</span>：<span style='color: #FFFF00'>1.11.1</span><br /><span style='color: #00FFFF'>核心功能</span>：<br />· 决策积分引擎（代码级收益分析+统一动作评分+小模型先验+扩展识别+守恒记分）<br />· 八层决策信号：节奏/性格/团队/位置/经济/博弈/预测/趋势<br />· 技能三维矩阵 + 反馈自我学习 + 跨局记忆 + 战报归档<br />· 性格三维滑条 + 模板市场 + 分享字符串 + 自定义模板<br />· 观战/批量对比 + 决策回放导入导出 + AI 协作分工 + 多档案<br />· 原生 AI 接管层（实验，可选，默认关）<br />· 完全接管 chooseToUse/Respond/Discard/Compare + 熔断器<br /><span style='color: #FFD700'>本次更新</span>：修正 override/ 子目录 noname.js import 路径。",
+	"version": "4.90.4",
+	"diskURL": "",
+	"forumURL": ""
+}
