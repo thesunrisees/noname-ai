@@ -173,9 +173,42 @@ export function markReady(ok) { META.ready = !!ok; saveWeights(); }
 export function getTrained() { return META.trained; }
 export function getMeta()    { return Object.assign({}, META); }
 export function predict(features) {
-    const logits = forward(features);
-    if (!logits) return null;
-    return softmax(logits);
+    /* ★ 兜底返回值：防止 undefined 导致冲突检测疯狂报警 */
+    const fallback = {
+        action: 'B',
+        label: 'B',
+        probs: [0.2, 0.2, 0.2, 0.2, 0.2, 0.2],
+        confidence: 0.0
+    };
+
+    try {
+        const logits = forward(features);
+        if (!logits) return fallback;
+        const result = softmax(logits);
+        if (!result || !Array.isArray(result) || result.length < 6) return fallback;
+
+        /* ★ 从概率分布中推导出 action 和 label */
+        let bestIdx = 0;
+        let bestProb = -1;
+        for (let i = 0; i < result.length; i++) {
+            if (result[i] > bestProb) {
+                bestProb = result[i];
+                bestIdx = i;
+            }
+        }
+
+        const labels = ['A', 'B', 'C', 'D', 'E', 'F'];
+        const action = labels[bestIdx] || 'B';
+
+        return {
+            action: action,
+            label: action,
+            probs: Array.from(result),
+            confidence: bestProb
+        };
+    } catch (e) {
+        return fallback;
+    }
 }
 export function resetWeights() {
     _initRandom(); META.trained = 0; META.accuracy = 0; META.ready = false;

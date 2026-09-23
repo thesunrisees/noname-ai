@@ -11,7 +11,7 @@ import './scoreSelfMod.js';  // ★ 积分自修改器：AI 直接修改规则�
 import { deckConsume, deckReset, cardRemaining, deckAutoDetect, deckSyncFromUI } from './deckMemory.js';
 import { baguaSuccessRate } from './deckPredict.js';
 import { identityOf as _identityOf, beliefOf, updateBelief, confidenceOf, isLikelyEnemy, isLikelyAlly, resetBelief, explainIdentity } from './identity.js';
-import { cfg, safe, nameOf, keyOf, isObj } from './util.js';
+import { cfg, safe, nameOf, keyOf } from './util.js';
 import { teamPlan } from './team.js';
 import { log } from './logger.js';
 import { getDecisionBonus, recordTargetOutcome, recordTempoOutcome, recordKeepOutcome, flushDecisionFeedback } from './decisionFeedback.js';
@@ -198,6 +198,46 @@ try {
             };
         },
     };
+
+    /* 概率推断函数挂载（供 features.js 80-84 维使用） */
+    window.__DJSC.probHasShan = probHasShan;
+    window.__DJSC.probHasTao = probHasTao;
+    window.__DJSC.probHasWuxie = probHasWuxie;
+    window.__DJSC.probHasSha = probHasSha;
+    window.__DJSC.probHasJiu = probHasJiu;
+    window.__DJSC.seatPressure = seatPressure;
+    window.__DJSC.cardValueOf = cardValueOf;
+    window.__DJSC.enemiesOf = enemiesOf;
+    window.__DJSC.isEnemyOf = isEnemyOf;
+    window.__DJSC.situationFactor = situationFactor;
+    window.__DJSC.targetScore = targetScore;
+    window.__DJSC.forecastSummary = forecastSummary;
+    window.__DJSC.burstThreatOf = burstThreatOf;
+    window.__DJSC.maxBurstThreat = maxBurstThreat;
+    window.__DJSC.deckMemory = {
+        cardRemaining: cardRemaining,
+        deckConsume: deckConsume,
+        deckReset: deckReset,
+        deckAutoDetect: deckAutoDetect,
+        deckSyncFromUI: deckSyncFromUI,
+        totalRemaining: function() {
+            try {
+                const pile = (typeof ui !== 'undefined' && ui.cardPile) ? ui.cardPile : null;
+                const discard = (typeof ui !== 'undefined' && ui.discardPile) ? ui.discardPile : null;
+                const pileCount = pile ? (pile.childNodes ? pile.childNodes.length : 0) : 0;
+                const discardCount = discard ? (discard.childNodes ? discard.childNodes.length : 0) : 0;
+                const total = pileCount + discardCount;
+                return total > 0 ? total : 1;
+            } catch (e) {
+                return 1;
+            }
+        },
+    };
+
+    /* ★ 挂载模型推理与配置接口 */
+    window.__DJSC.confidence = predict;
+    window.__DJSC.cfg = cfg;
+    window.__DJSC.weightsReady = weightsReady;
 } catch (e) { console.error('挂载新模块失败:', e); }
 
 let round = {};
@@ -476,14 +516,14 @@ function scoreCardUse(me, card, target) {
 		if (!v || !v.use) return;
 
 		/* 记录"对目标出杀"的次数（供 threat.js 的 probHasShan 读取） */
-		if (id === "sha" && target && isObj(target)) {
+		if (id === "sha" && target && get.itemtype(target) === "player") {
 			try { memRecordAtk(target); } catch (eM) {}
 		}
 		/* 行为观察：记录攻/援行为 */
 		try { observeCardUse(me, card, target); } catch (eO) {}
 
 		/* ★ 友方延迟评估：不立即给正分，等 600ms 后评估是否有正收益 */
-		if (target && isObj(target)) {
+		if (target && get.itemtype(target) === "player") {
 			/* ★ 判断友方（好感度 + 阵营策略双保险） */
 			let isAlly = false;
 			try {
@@ -564,7 +604,7 @@ function scoreCardUse(me, card, target) {
 			/* ★ AOE：按友方/敌方分别结算 */
 			let allyHurt = 0, enemyHit = 0;
 			target.forEach(function (t) {
-				if (!isObj(t)) return;
+				if (!get.itemtype(t) === "player") return;
 				let isAlly = false;
 				try {
 					if (isSameCamp(me, t)) isAlly = true;
@@ -603,9 +643,9 @@ const EFFECT_HANDLERS = {
 		const p0 = a[0];
 		let src = null, n = 1;
 		if (p0 && typeof p0 === "object" && !Array.isArray(p0)) {
-			if (isObj(p0)) src = p0;
+			if (get.itemtype(p0) === "player") src = p0;
 			if (typeof p0.num === "number") n = p0.num;
-			if (p0.source && isObj(p0.source) && p0.source !== me) src = p0.source;
+			if (p0.source && get.itemtype(p0.source) === "player" && p0.source !== me) src = p0.source;
 		} else {
 			/* noname 签名 damage(num, source, ...)：number 与 player 参数乱序，遍历全部参数 */
 			for (let i = 0; i < a.length; i++) {
@@ -673,8 +713,8 @@ const EFFECT_HANDLERS = {
 			}
 			if (!src && a[0] && typeof a[0] === "object" && !Array.isArray(a[0])) {
 				const p0 = a[0];
-				if (p0.source && isObj(p0.source) && p0.source !== me) src = p0.source;
-				else if (p0.sourcex && isObj(p0.sourcex) && p0.sourcex !== me) src = p0.sourcex;
+				if (p0.source && get.itemtype(p0.source) === "player" && p0.source !== me) src = p0.source;
+				else if (p0.sourcex && get.itemtype(p0.sourcex) === "player" && p0.sourcex !== me) src = p0.sourcex;
 			}
 			if (src) observeAid(src, me, n * 0.8);
 		} catch (eO) {}
@@ -1281,6 +1321,8 @@ function _calcAllyDamagePenalty(player, target, cardId) {
 function bestAction() {
 	const _perfT0 = performance.now();
 	profStart('bestAction');
+	/* ★ 兜底声明：防止作用域问题导致 best is not defined */
+	let best = { type: "end", id: "end", score: 0, reason: "初始化兜底" };
 	try {
 		const me = _status.currentPhase || game.me;
 		if (!me) return null;
@@ -1324,6 +1366,79 @@ function bestAction() {
 		/* ===== 敌方爆发威胁（连弩 + 多杀）===== */
 		const burst = maxBurstThreat(me);
 		const mt = multiTurnForecast(me);
+		/* ===== 目标分缓存：每玩家只算一次，供所有卡牌共用 =====
+		 * - tsMap：pp 对象 → targetScore 数值
+		 * - bestT / bestTs：当前局势下全局最优目标及其分数（与具体卡牌无关）
+		 */
+		const tsMap = new Map();
+		let bestT = null, bestTs = -1;
+		try {
+			for (const pp of (game.players || [])) {
+				if (pp === me) continue;
+				try { if (pp.isDead ? pp.isDead() : (pp.hp !== undefined && pp.hp <= 0)) continue; } catch (e) {}
+				/* C 阶段 clamp：目标分规范值域 [0, 15]。
+				 * 防止某些极端场景（多个加成叠加）让单个目标分飙到 30+，
+				 * 导致决策被单一目标碾压。 */
+				let ts = targetScore(me, pp);
+				if (ts < 0) ts = 0;
+				if (ts > 15) ts = 15;
+				tsMap.set(pp, ts);
+				if (ts > bestTs) { bestTs = ts; bestT = pp; }
+			}
+		} catch (e) {}
+		/* ★ 广播集火：读同阵营广播，给已集火目标加成 */
+		try {
+			const broadcastBonus = {};
+			for (const pp of (game.players || [])) {
+				if (pp === me) continue;
+				const pk = pp.name1 || pp.name;
+				if (!pk) continue;
+				broadcastBonus[pk] = focusBonus(me, pk);
+			}
+			for (const [pp, ts] of tsMap) {
+				const pk = pp.name1 || pp.name;
+				const bb = broadcastBonus[pk] || 1.0;
+				const newTs = ts * bb;
+				tsMap.set(pp, newTs);
+				if (newTs > bestTs) {
+					bestTs = newTs;
+					bestT = pp;
+				}
+			}
+		} catch (eB) {}
+		/* 集火优先：若队友共同攻击压力最大的敌人与当前最优目标不同，
+		 * 且其目标分不低于最优的 70%，则切换为集火目标。 */
+		if (focus && focus.target && bestT !== focus.target) {
+			const focusTs = tsMap.get(focus.target) || 0;
+			if (focusTs >= bestTs * 0.7) {
+				bestT = focus.target;
+				bestTs = focusTs;
+			}
+		}
+		/* 风格偏好：优先打「激进/均衡」敌人，避开「保守」 */
+		try {
+			let styleAdjBest = bestT, styleAdjScore = -1;
+			for (const [pp, ts] of tsMap) {
+				if (pp === me) continue;
+				const s = styleOf(pp);
+				let mul = 1.0;
+				if (s.tag === "aggressive") mul = 1.3;      /* ★ 提高权重：1.15 → 1.3 */
+				else if (s.tag === "cautious") mul = 0.75;  /* ★ 提高权重：0.85 → 0.75 */
+				else if (s.tag === "vengeful") mul = 0.9;   /* ★ 复仇心重：降低攻击欲望 */
+				const adj = ts * mul;
+				if (adj > styleAdjScore) { styleAdjScore = adj; styleAdjBest = pp; }
+			}
+			if (styleAdjBest && styleAdjBest !== bestT) {
+				const origTs = tsMap.get(bestT) || 0;
+				if (styleAdjScore >= origTs * 0.9) {     /* ★ 降低切换门槛：0.95 → 0.9 */
+					bestT = styleAdjBest;
+					bestTs = Math.round(styleAdjScore * 100) / 100;
+				}
+			}
+		} catch (e) {}
+		try { _probShanCache.clear(); } catch (e) {}
+		/* ★ 缓存存活玩家，供 extractFeatures 复用，避免循环内重复遍历 */
+		const alivePlayers = (game.players || []).filter(function(p) { return p && p.alive !== false; });
 		const acts = [];
 		/* ===== 趋势驱动策略（把 mt.overall 从提示升级为决策权重） ===== */
 		const trend = mt ? mt.overall : "stable";
@@ -1514,77 +1629,6 @@ function bestAction() {
 				});
 			} catch (e) {}
 		});
-		/* ===== 目标分缓存：每玩家只算一次，供所有卡牌共用 =====
-		 * - tsMap：pp 对象 → targetScore 数值
-		 * - bestT / bestTs：当前局势下全局最优目标及其分数（与具体卡牌无关）
-		 */
-		const tsMap = new Map();
-		let bestT = null, bestTs = -1;
-		try {
-			for (const pp of (game.players || [])) {
-				if (pp === me) continue;
-				try { if (pp.isDead ? pp.isDead() : (pp.hp !== undefined && pp.hp <= 0)) continue; } catch (e) {}
-				/* C 阶段 clamp：目标分规范值域 [0, 15]。
-				 * 防止某些极端场景（多个加成叠加）让单个目标分飙到 30+，
-				 * 导致决策被单一目标碾压。 */
-				let ts = targetScore(me, pp);
-				if (ts < 0) ts = 0;
-				if (ts > 15) ts = 15;
-				tsMap.set(pp, ts);
-				if (ts > bestTs) { bestTs = ts; bestT = pp; }
-			}
-		} catch (e) {}
-		/* ★ 广播集火：读同阵营广播，给已集火目标加成 */
-		try {
-			const broadcastBonus = {};
-			for (const pp of (game.players || [])) {
-				if (pp === me) continue;
-				const pk = pp.name1 || pp.name;
-				if (!pk) continue;
-				broadcastBonus[pk] = focusBonus(me, pk);
-			}
-			for (const [pp, ts] of tsMap) {
-				const pk = pp.name1 || pp.name;
-				const bb = broadcastBonus[pk] || 1.0;
-				const newTs = ts * bb;
-				tsMap.set(pp, newTs);
-				if (newTs > bestTs) {
-					bestTs = newTs;
-					bestT = pp;
-				}
-			}
-		} catch (eB) {}
-		/* 集火优先：若队友共同攻击压力最大的敌人与当前最优目标不同，
-		 * 且其目标分不低于最优的 70%，则切换为集火目标。 */
-		if (focus && focus.target && bestT !== focus.target) {
-			const focusTs = tsMap.get(focus.target) || 0;
-			if (focusTs >= bestTs * 0.7) {
-				bestT = focus.target;
-				bestTs = focusTs;
-			}
-		}
-		/* 风格偏好：优先打「激进/均衡」敌人，避开「保守」 */
-		try {
-			let styleAdjBest = bestT, styleAdjScore = -1;
-			for (const [pp, ts] of tsMap) {
-				if (pp === me) continue;
-				const s = styleOf(pp);
-				let mul = 1.0;
-				if (s.tag === "aggressive") mul = 1.3;      /* ★ 提高权重：1.15 → 1.3 */
-				else if (s.tag === "cautious") mul = 0.75;  /* ★ 提高权重：0.85 → 0.75 */
-				else if (s.tag === "vengeful") mul = 0.9;   /* ★ 复仇心重：降低攻击欲望 */
-				const adj = ts * mul;
-				if (adj > styleAdjScore) { styleAdjScore = adj; styleAdjBest = pp; }
-			}
-			if (styleAdjBest && styleAdjBest !== bestT) {
-				const origTs = tsMap.get(bestT) || 0;
-				if (styleAdjScore >= origTs * 0.9) {     /* ★ 降低切换门槛：0.95 → 0.9 */
-					bestT = styleAdjBest;
-					bestTs = Math.round(styleAdjScore * 100) / 100;
-				}
-			}
-		} catch (e) {}
-		try { _probShanCache.clear(); } catch (e) {}
 
 		/* 卡牌候选（目标综合评分 + EV）—— 复用外层 bestT / bestTs，不再对每张牌重算目标分 */
 		const seen = {};
@@ -2515,25 +2559,67 @@ function bestAction() {
 			});
 		} catch (eBan) {}
 
-		/* ★ 用训练好的模型微调每个候选的分数 */
+		/* ★ 模型融合变量声明（best 确定后再执行融合逻辑） */
 		let modelConf = null, metaMod = null, intervention = 'skip';
+
+		acts.sort(function (a, b) { return b.score - a.score; });
+		const endAction = acts.filter(function (a) { return a.type === "end"; })[0] || { type: "end", id: "end", score: 0, reason: "结束回合" };
+		best = (acts[0] && acts[0].score > 0) ? acts[0] : endAction;
+
+		/* ★ 暴露候选给 planner */
 		try {
-			if (weightsReady() && cfg('useTrainedModel', false)) {
-				/* ★ 新：96 维 → 单次前向，得到 6 标签概率 */
+			_status.djsc_lastCandidates = acts.slice(0, 8);
+			_status.djsc_lastBestT = bestT;
+			_status.djsc_lastBestTs = bestTs;
+			_status.djsc_lastSit = sit;
+			_status.djsc_lastEcon = econ;
+		} catch (e) {}
+
+		/* ★ 规划器：用多步视角微调 best */
+		try {
+			const refined = refineBestWithPlan(me, best, bestT);
+			if (refined && refined !== best) {
+				best = refined;
+				if (!acts.some(function (a) { return a.id === refined.id; })) {
+					acts.push(refined);
+					acts.sort(function (a, b) { return b.score - a.score; });
+				}
+			}
+		} catch (eP) {}
+
+			/* ★ P0-1 性能优化：只给前5个高分动作算特征，大幅减少计算量 */
+			try {
+				const _buf = new Int8Array(FEATURE_DIM);
+				const ctx = {
+					bestT: bestT,
+					bestTs: bestTs,
+					isEnemy: bestT ? isEnemyOf(me, bestT) : false,
+					focusTarget: focus ? focus.target : null,
+				};
+				/* 只给前 5 个高分动作算特征（够模型选了） */
+				const topN = Math.min(5, acts.length);
+				for (let i = 0; i < topN; i++) {
+					try {
+						if (performance.now() - _perfT0 > 15) break; // 15ms 硬限制
+						const f = extractFeatures(me, acts[i], ctx, _buf, alivePlayers);
+						acts[i]._feat = Array.from(f);
+					} catch (e) {}
+				}
+			} catch (eFeat) {}
+		/* ★ 用训练好的模型微调（best 已确定，可安全访问 best._feat） */
+		try {
+			if (weightsReady() && cfg('useTrainedModel', true) && best && best._feat) {
 				const feat = new Int8Array(96);
 				for (let i = 0; i < 96 && i < best._feat.length; i++) feat[i] = best._feat[i];
 				modelConf = window.__DJSC && window.__DJSC.confidence ? window.__DJSC.confidence(feat) : null;
 				if (modelConf && modelConf.action !== 'skip') {
-					/* ★ 元认知调制 */
 					metaMod = cognitiveModulate(
 						{ type: best.type, id: best.id, target: best.target },
 						{}
 					);
 					intervention = decideIntervention(modelConf, metaMod);
-
 					const wModelMap = { model: 0.5, blend: 0.3, rule: 0.1, skip: 0 };
 					const baseW = wModelMap[intervention] || 0.1;
-					/* ★ 叠加校准偏移：模型信任偏移 */
 					let calibTrust = 0;
 					try {
 						if (window.__DJSC.calibrator && window.__DJSC.calibrator.modelTrust) {
@@ -2541,8 +2627,7 @@ function bestAction() {
 						}
 					} catch (e) {}
 					const wModel = Math.max(0.05, Math.min(0.7, baseW - calibTrust));
-
-					if (intervention !== 'skip') {
+					if (true) { // 强制允许模型接管，不管置信度多低
 						for (let i = 0; i < acts.length; i++) {
 							const a = acts[i];
 							if (!a._feat) continue;
@@ -2552,28 +2637,21 @@ function bestAction() {
 							if (!sub) continue;
 							const modelStrength = (sub.probs ? Math.max.apply(null, sub.probs) : 0) * 32;
 							a.score = Math.round(a.score * (1 - wModel) + modelStrength * wModel);
-							a.reason = (a.reason || '') + '[M:' + sub.label + '·' + intervention + '·F' +
-								Math.round(metaMod.familiarity * 100) + '%]';
+							var mLog = '[M:' + sub.label + '·' + intervention + '·F' + Math.round(metaMod.familiarity * 100) + '%]';
+							a.reason = (a.reason || '') + mLog;
+							try { game.log('模型接管：' + mLog); } catch (e) {}
 						}
 					}
-
-					/* ★ 认知冲突检测 */
 					try {
 						if (window.__DJSC.conflict && window.__DJSC.conflict.detect) {
 							window.__DJSC.conflict.detect(best, modelConf, metaMod, { type: best.type, id: best.id, target: best.target });
 						}
 					} catch (eC) {}
-
-					/* ★ 决策结果回填 */
 					try {
 						if (window.__DJSC.calibrator && window.__DJSC.calibrator.record && modelConf) {
-							window.__DJSC.calibrator.record(best, modelConf, {
-								me: me, bestT: bestT, bestTs: bestTs,
-							});
+							window.__DJSC.calibrator.record(best, modelConf, { me: me, bestT: bestT, bestTs: bestTs });
 						}
 					} catch (eCal) {}
-
-					/* ★ 策略总线仲裁：规则 vs 模型冲突时做最终裁决 */
 					try {
 						if (window.__DJSC.strategyBus && modelConf && modelConf.confidence >= 0.55) {
 							const busRes = window.__DJSC.strategyBus.arbitrate(best, modelConf, me, acts);
@@ -2583,8 +2661,6 @@ function bestAction() {
 							}
 						}
 					} catch (eBus) {}
-
-					/* 记录全局置信度，供面板观测 */
 					try { _status.djsc_lastConfidence = modelConf; } catch (e) {}
 					try { _status.djsc_lastMeta = { model: modelConf, meta: metaMod, intervention: intervention }; } catch (e) {}
 				}
@@ -2609,30 +2685,6 @@ function bestAction() {
 			}
 		} catch (eCL) {}
 
-		acts.sort(function (a, b) { return b.score - a.score; });
-		const endAction = acts.filter(function (a) { return a.type === "end"; })[0] || { type: "end", id: "end", score: 0, reason: "结束回合" };
-		let best = (acts[0] && acts[0].score > 0) ? acts[0] : endAction;
-
-		/* ★ 暴露候选给 planner */
-		try {
-			_status.djsc_lastCandidates = acts.slice(0, 8);
-			_status.djsc_lastBestT = bestT;
-			_status.djsc_lastBestTs = bestTs;
-			_status.djsc_lastSit = sit;
-			_status.djsc_lastEcon = econ;
-		} catch (e) {}
-
-		/* ★ 规划器：用多步视角微调 best */
-		try {
-			const refined = refineBestWithPlan(me, best, bestT);
-			if (refined && refined !== best) {
-				best = refined;
-				if (!acts.some(function (a) { return a.id === refined.id; })) {
-					acts.push(refined);
-					acts.sort(function (a, b) { return b.score - a.score; });
-				}
-			}
-		} catch (eP) {}
 		let action = "B";
 		if (best.type === "skill") action = "F";
 		else if (best.type === "equip") action = "E";
@@ -2715,23 +2767,7 @@ function bestAction() {
 						}).slice(0, 2),
 					};
 				}
-			} catch (e) {}
-			/* ★ P0-1 修复：提取特征 */
-			try {
-				const _buf = new Int8Array(FEATURE_DIM);
-				const ctx = {
-					bestT: bestT,
-					bestTs: bestTs,
-					isEnemy: bestT ? isEnemyOf(me, bestT) : false,
-					focusTarget: focus ? focus.target : null,
-				};
-				for (let i = 0; i < acts.length; i++) {
-					try {
-						const f = extractFeatures(me, acts[i], ctx, _buf);
-						acts[i]._feat = Array.from(f);
-					} catch (e) {}
-				}
-			} catch (eFeat) {}
+			} catch (ePlan) {}
 			recordDecision(me, layers, acts, best);
 		} catch (eRec) {}
 		const forecastTip = "｜预测：" + forecast.advice + "（压力 " + incoming.total + " 风险 " + Math.round(incoming.selfRisk * 100) + "%）";
@@ -3058,24 +3094,24 @@ function settle() {
 			const myKey = me ? (me.name || me.name1 || "?") : "?";
 			const myScore = round[myKey] || 0;
 			/* ★ P0-1 修复：回填 reward */
+			/* ★ P0-1 修复：回填 reward（仅 winner，不污染未选中候选） */
 			try {
 				const dLog = getDecisionLog();
 				let pushed = 0;
 				for (const entry of dLog) {
 					if (!entry || !entry.candidates) continue;
-					for (const c of entry.candidates) {
-						if (!c._feat) continue;
-						pushSample(c._feat, myScore, {
-							round: entry.round || 0,
-							type: c.type || '',
-							id: c.id || '',
-							score: Math.round(c.score || 0),
-						});
-						pushed++;
-					}
+					const winner = entry.winner || entry.candidates[0];
+					if (!winner || !winner._feat) continue;
+					pushSample(winner._feat, myScore, {
+						round: entry.round || 0,
+						type: winner.type || '',
+						id: winner.id || '',
+						score: Math.round(winner.score || 0),
+					});
+					pushed++;
 				}
 				if (pushed > 0) {
-					try { log.info('train', '本局回填 ' + pushed + ' 条样本，累计 ' + bufferSize()); } catch (e) {}
+					try { log.info('train', '本局回填 ' + pushed + ' 条样本（仅 winner），累计 ' + bufferSize()); } catch (e) {}
 				}
 			} catch (eTrain) {}
 			const q = { crush: 0, normal: 0, close: 0 };

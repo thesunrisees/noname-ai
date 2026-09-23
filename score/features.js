@@ -61,10 +61,11 @@ function qSign(v, scale) {
 }
 
 /* ================= 主函数 ================= */
-export function extractFeatures(me, act, ctx, out) {
+export function extractFeatures(me, act, ctx, out, allPlayers) {
     const f = out || new Int8Array(FEATURE_DIM);
     for (let i = 0; i < FEATURE_DIM; i++) f[i] = 0;
     ctx = ctx || {};
+    const _players = allPlayers || game.players || [];
 
     /* ========== 0-31 状态特征（保留） ========== */
     let hc = 0, hLimit = 5;
@@ -97,7 +98,7 @@ export function extractFeatures(me, act, ctx, out) {
     let alive = 0, enemies = 0, allies = 0, allyLow = 0, enemyLow = 0;
     let enemyZhuge = 0, enemyTengjia = 0;
     try {
-        for (const p of (game.players || [])) {
+        for (const p of _players) {
             if (!p || p.alive === false) continue;
             alive++;
             if (p === me) continue;
@@ -224,7 +225,7 @@ export function extractFeatures(me, act, ctx, out) {
     try {
         let enemyAvgHand = 0, enemyAvgHp = 0, enemyAvgEq = 0, enemyCount2 = 0;
         let allyAvgHand = 0, allyAvgHp = 0, allyCount2 = 0;
-        for (const p of (game.players || [])) {
+        for (const p of _players) {
             if (!p || p === me || p.alive === false) continue;
             const att = get.attitude(me, p);
             const h2 = p.countCards ? p.countCards('h') : 0;
@@ -258,7 +259,7 @@ export function extractFeatures(me, act, ctx, out) {
             const rd = window.__DJSC && window.__DJSC.getRound ? window.__DJSC.getRound() : {};
             let myScore = rd[_histKey(me)] || 0;
             let eScore = 0, eN = 0, aScore = 0, aN = 0;
-            for (const p of (game.players || [])) {
+            for (const p of _players) {
                 if (!p || p === me || p.alive === false) continue;
                 const k = p.name1 || p.name;
                 const s = rd[k] || 0;
@@ -285,7 +286,7 @@ export function extractFeatures(me, act, ctx, out) {
         /* 70: 我 HP 占全场 HP 总和比例 */
         try {
             let totalHp = hp, allHp = hp;
-            for (const p of (game.players || [])) {
+            for (const p of _players) {
                 if (!p || p === me || p.alive === false) continue;
                 allHp += (p.hp || 0);
             }
@@ -294,7 +295,7 @@ export function extractFeatures(me, act, ctx, out) {
         /* 71: 我手牌占全场手牌比例 */
         try {
             let allH = hc;
-            for (const p of (game.players || [])) {
+            for (const p of _players) {
                 if (!p || p === me || p.alive === false) continue;
                 allH += (p.countCards ? p.countCards('h') : 0);
             }
@@ -328,7 +329,7 @@ export function extractFeatures(me, act, ctx, out) {
             try {
                 const mod = window.__DJSC;
                 if (mod && typeof mod.probHasShan === 'function') {
-                    f[80] = q(mod.probHasShan(tgt));
+                    f[80] = q(mod.probHasShan(me, tgt));
                 }
             } catch (e) {}
         }
@@ -337,7 +338,7 @@ export function extractFeatures(me, act, ctx, out) {
             try {
                 const mod = window.__DJSC;
                 if (mod && typeof mod.probHasTao === 'function') {
-                    f[81] = q(mod.probHasTao(tgt));
+                    f[81] = q(mod.probHasTao(me, tgt));
                 }
             } catch (e) {}
         }
@@ -346,7 +347,7 @@ export function extractFeatures(me, act, ctx, out) {
             try {
                 const mod = window.__DJSC;
                 if (mod && typeof mod.probHasWuxie === 'function') {
-                    f[82] = q(mod.probHasWuxie(tgt));
+                    f[82] = q(mod.probHasWuxie(me, tgt));
                 }
             } catch (e) {}
         }
@@ -355,7 +356,7 @@ export function extractFeatures(me, act, ctx, out) {
             try {
                 const mod = window.__DJSC;
                 if (mod && typeof mod.probHasSha === 'function') {
-                    f[83] = q(mod.probHasSha(tgt));
+                    f[83] = q(mod.probHasSha(me, tgt));
                 }
             } catch (e) {}
         }
@@ -364,7 +365,7 @@ export function extractFeatures(me, act, ctx, out) {
             try {
                 const mod = window.__DJSC;
                 if (mod && typeof mod.probHasJiu === 'function') {
-                    f[84] = q(mod.probHasJiu(tgt));
+                    f[84] = q(mod.probHasJiu(me, tgt));
                 }
             } catch (e) {}
         }
