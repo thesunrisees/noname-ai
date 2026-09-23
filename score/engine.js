@@ -1376,10 +1376,13 @@ function bestAction() {
 			for (const pp of (game.players || [])) {
 				if (pp === me) continue;
 				try { if (pp.isDead ? pp.isDead() : (pp.hp !== undefined && pp.hp <= 0)) continue; } catch (e) {}
+				/* ★ 友方减免：友方目标分数大幅降低，防止 AI 乱打队友 */
+				const isAlly = !isEnemyOf(me, pp);
+				let ts = targetScore(me, pp);
+				if (isAlly) ts *= 0.1; // 友方分数打1折
 				/* C 阶段 clamp：目标分规范值域 [0, 15]。
 				 * 防止某些极端场景（多个加成叠加）让单个目标分飙到 30+，
 				 * 导致决策被单一目标碾压。 */
-				let ts = targetScore(me, pp);
 				if (ts < 0) ts = 0;
 				if (ts > 15) ts = 15;
 				tsMap.set(pp, ts);
