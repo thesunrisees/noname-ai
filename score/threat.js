@@ -240,10 +240,10 @@ function tempoFactor() /* ★ 成长效率降低 30% */ {
 		else if (r >= 8) stage = "late";
 
 		const T = {
-			early:   { atkMul: 0.7, keepMul: 1.3, burstMul: 0.6, desc: "蓄爆期（留闪桃、观察局势）" },
-			mid:     { atkMul: 1.0, keepMul: 1.0, burstMul: 1.0, desc: "常规期（正常节奏）" },
-			late:    { atkMul: 1.3, keepMul: 0.7, burstMul: 1.4, desc: "发力期（果断进攻）" },
-			endgame: { atkMul: 1.5, keepMul: 0.5, burstMul: 1.6, desc: "残局（全力收割）" },
+			early:   { atkMul: 0.9, keepMul: 1.1, burstMul: 0.8, desc: "蓄爆期（适度进攻）" },
+			mid:     { atkMul: 1.2, keepMul: 0.9, burstMul: 1.2, desc: "常规期（主动进攻）" },
+			late:    { atkMul: 1.5, keepMul: 0.6, burstMul: 1.6, desc: "发力期（果断进攻）" },
+			endgame: { atkMul: 1.8, keepMul: 0.4, burstMul: 1.8, desc: "残局（全力收割）" },
 		};
 		const t = T[stage] || T.mid;
 		return { stage, round: r, alive, atkMul: t.atkMul, keepMul: t.keepMul, burstMul: t.burstMul, desc: t.desc };

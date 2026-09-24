@@ -439,22 +439,69 @@ export let config = {
 	trainBd: { clear: true, name: '<hr aria-hidden="true"><div style="color: #ffd479; text-align:center; font-size: 16px; padding: 10px;">🎓 训练/蒸馏（AI 学习闭环）</div>' },
 
 	exportTrainingData: {
-		name: '<button class="djsc-menu-config-btn" style="background: linear-gradient(135deg, #ffd479, #ffa500); width: 100%; padding: 15px; font-size: 16px; margin: 8px 0;">📥 导出训练数据（JSON）</button>',
-		intro: '导出 AI 决策样本数据，用于 Python 蒸馏训练',
+		name: '<button class="djsc-menu-config-btn" style="background: linear-gradient(135deg, #ffd479, #ffa500); width: 100%; padding: 15px; font-size: 16px; margin: 8px 0;">📥 导出AI学习数据</button>',
+		intro: '导出你的AI训练样本，保存到 data/training/ 文件夹，可分享给别人',
 		onclick: function () {
 			try {
-				if (window.__DJSC && window.__DJSC.trainExportAndDownload) {
-					const result = window.__DJSC.trainExportAndDownload();
-					if (result && result.ok) {
-						alert('✅ 导出成功！\n\n📊 样本数：' + result.count + '\n🎮 局数：' + result.gameCount);
+				if (window.__DJSC && window.__DJSC.__trainExportModule) {
+					/* ★ 调用真正的导出函数，只生成一个数据文件 */
+					const result = window.__DJSC.__trainExportModule.downloadJson();
+					if (result.ok) {
+						alert('✅ 导出成功！\n\n📊 样本数：' + result.count + ' 条\n📁 文件：' + result.file);
 					} else {
-						alert('导出失败：' + (result && result.err ? result.err : '未知错误'));
+						alert('导出失败：' + result.err);
 					}
 				} else {
-					alert('训练数据模块未就绪（请进入对局后再试）');
+					alert('训练数据模块未就绪');
 				}
 			} catch (e) {
 				alert('导出失败：' + e.message);
+			}
+			return false;
+		}
+	},
+
+	importTrainingData: {
+		name: '<button class="djsc-menu-config-btn" style="background: linear-gradient(135deg, #ffb379, #ff8c42); width: 100%; padding: 15px; font-size: 16px; margin: 8px 0;">📤 导入别人的AI数据</button>',
+		intro: '选择别人发给你的JSON文件（可多选），自动合并到你的样本里',
+		onclick: function () {
+			try {
+				const input = document.createElement('input');
+				input.type = 'file';
+				input.accept = '.json';
+				input.multiple = true;  /* 支持多选文件 */
+				input.onchange = function (e) {
+					const files = Array.from(e.target.files);
+					if (!files.length) return;
+					
+					let totalAdded = 0, totalMerged = 0, totalSkipped = 0;
+					let processed = 0;
+					
+					files.forEach(function(file) {
+						const reader = new FileReader();
+						reader.onload = function(ev) {
+							try {
+								const jsonStr = ev.target.result;
+								if (window.__DJSC && window.__DJSC.trainImport) {
+									const result = window.__DJSC.trainImport(jsonStr);
+									if (result.ok) {
+										totalAdded += result.added;
+										totalMerged += result.merged;
+										totalSkipped += result.skipped;
+									}
+								}
+							} catch (err) {}
+							processed++;
+							if (processed === files.length) {
+								alert('✅ 导入完成！\n\n文件数：' + files.length + ' 个\n新增样本：' + totalAdded + ' 条\n合并样本：' + totalMerged + ' 条\n跳过样本：' + totalSkipped + ' 条\n\n当前总样本：' + (__DJSC.trainBufferSize ? __DJSC.trainBufferSize().count : '?') + ' 条');
+							}
+						};
+						reader.readAsText(file);
+					});
+				};
+				input.click();
+			} catch (e) {
+				alert('导入失败：' + e.message);
 			}
 			return false;
 		}

@@ -1,12 +1,15 @@
-/* ================= 特征提取 · Int8 · 96维 =================
+/* ================= 特征提取 · Int8 · 130维 =================
  * 0-31  状态特征（原 32 维，保留）
  * 32-47 动作特征（原 16 维，保留）
  * 48-63 时序特征（新增）
  * 64-79 相对强度特征（新增）
  * 80-95 概率/牌堆特征（新增）
+ * 96-119 面板扩展特征（新增：技能/记忆/连招/预测/心理/位置/团队/规划/经济/认知）
+ * 120-124 全卡牌分组概率（新增：控制/AOE/延时/爆发/过牌）
+ * 125-129 完整技能标签（新增：摸牌/回复/辅助/生存/目标防御）
  */
 
-export const FEATURE_DIM = 96;
+export const FEATURE_DIM = 130;
 
 /* ---------- 原有映射表 ---------- */
 const ATK_IDS  = { sha:1, juedou:1, huogong:1, nanman:1, wanjian:1, zhujin:1, huosha:1, leisha:1 };
@@ -324,50 +327,14 @@ export function extractFeatures(me, act, ctx, out, allPlayers) {
 
     /* ========== ★ 80-95 概率/牌堆特征 ========== */
     try {
-        /* 80: 目标有闪概率（用 handInference） */
-        if (tgt) {
-            try {
-                const mod = window.__DJSC;
-                if (mod && typeof mod.probHasShan === 'function') {
-                    f[80] = q(mod.probHasShan(me, tgt));
-                }
-            } catch (e) {}
-        }
-        /* 81: 目标有桃概率 */
-        if (tgt) {
-            try {
-                const mod = window.__DJSC;
-                if (mod && typeof mod.probHasTao === 'function') {
-                    f[81] = q(mod.probHasTao(me, tgt));
-                }
-            } catch (e) {}
-        }
-        /* 82: 目标有无懈概率 */
-        if (tgt) {
-            try {
-                const mod = window.__DJSC;
-                if (mod && typeof mod.probHasWuxie === 'function') {
-                    f[82] = q(mod.probHasWuxie(me, tgt));
-                }
-            } catch (e) {}
-        }
-        /* 83: 目标有杀概率 */
-        if (tgt) {
-            try {
-                const mod = window.__DJSC;
-                if (mod && typeof mod.probHasSha === 'function') {
-                    f[83] = q(mod.probHasSha(me, tgt));
-                }
-            } catch (e) {}
-        }
-        /* 84: 目标有酒概率 */
-        if (tgt) {
-            try {
-                const mod = window.__DJSC;
-                if (mod && typeof mod.probHasJiu === 'function') {
-                    f[84] = q(mod.probHasJiu(me, tgt));
-                }
-            } catch (e) {}
+        /* ★ 手牌感知：80-84 维（已恢复） */
+        const mod = window.__DJSC;
+        if (mod && tgt) {
+            if (typeof mod.probHasShan === 'function') f[80] = q(mod.probHasShan(me, tgt));
+            if (typeof mod.probHasTao === 'function') f[81] = q(mod.probHasTao(me, tgt));
+            if (typeof mod.probHasWuxie === 'function') f[82] = q(mod.probHasWuxie(me, tgt));
+            if (typeof mod.probHasSha === 'function') f[83] = q(mod.probHasSha(me, tgt));
+            if (typeof mod.probHasJiu === 'function') f[84] = q(mod.probHasJiu(me, tgt));
         }
         /* 85: 距离 */
         if (tgt) {
@@ -435,6 +402,214 @@ export function extractFeatures(me, act, ctx, out, allPlayers) {
                 f[95] = q(Math.min(1, Math.log10(1 + (s.total || 0)) / 3));
             }
         } catch (e) {}
+
+        /* ================= 96-119: 面板扩展特征（24维） ================= */
+
+        /* 96-99: 我的技能标签统计 */
+        try {
+            const myTags = { attack:0, defense:0, burst:0, control:0 };
+            const tagMod = window.__DJSC && window.__DJSC.skillTags;
+            (me.skills || []).forEach(function(sid) {
+                if (!tagMod || typeof tagMod.get !== 'function') return;
+                const tag = tagMod.get(sid);
+                if (tag === 'attack') myTags.attack++;
+                if (tag === 'defense') myTags.defense++;
+                if (tag === 'burst') myTags.burst++;
+                if (tag === 'control') myTags.control++;
+            });
+            f[96] = q(Math.min(1, myTags.attack / 3));    // 我的攻击技能数
+            f[97] = q(Math.min(1, myTags.defense / 3));   // 我的防御技能数
+            f[98] = q(Math.min(1, myTags.burst / 2));     // 我的爆发技能数
+            f[99] = q(Math.min(1, myTags.control / 2));   // 我的控制技能数
+        } catch (e) {}
+
+        /* 100-101: 目标的技能标签统计 */
+        try {
+            if (tgt) {
+                const tgtTags = { attack:0, burst:0 };
+                const tagMod = window.__DJSC && window.__DJSC.skillTags;
+                (tgt.skills || []).forEach(function(sid) {
+                    if (!tagMod || typeof tagMod.get !== 'function') return;
+                    const tag = tagMod.get(sid);
+                    if (tag === 'attack') tgtTags.attack++;
+                    if (tag === 'burst') tgtTags.burst++;
+                });
+                f[100] = q(Math.min(1, tgtTags.attack / 3));  // 目标的攻击技能数
+                f[101] = q(Math.min(1, tgtTags.burst / 2));    // 目标的爆发技能数
+            }
+        } catch (e) {}
+
+        /* 102-103: 玩家记忆（对手进攻倾向/仇恨度） */
+        try {
+            const memMod = window.__DJSC && window.__DJSC.playerMemory;
+            if (memMod && tgt) {
+                const mem = memMod.getMemory ? memMod.getMemory(tgt) : null;
+                if (mem) {
+                    f[102] = q(Math.min(1, (mem.attacks || 0) / 5));   // 对手进攻倾向
+                    f[103] = q(Math.min(1, (mem.hatred || 0) / 10));  // 对手仇恨度
+                }
+            }
+        } catch (e) {}
+
+        /* 104-105: 连招链（可触发连招数/连招威胁度） */
+        try {
+            const comboMod = window.__DJSC && window.__DJSC.comboChain;
+            if (comboMod) {
+                const combo = comboMod.analyze ? comboMod.analyze(me) : null;
+                if (combo) {
+                    f[104] = q(Math.min(1, (combo.count || 0) / 3));       // 可触发连招数
+                    f[105] = q(Math.min(1, (combo.threat || 0) / 10));     // 连招威胁度
+                }
+            }
+        } catch (e) {}
+
+        /* 106-107: 对手预测（下回合出牌概率/杀概率） */
+        try {
+            const predMod = window.__DJSC && window.__DJSC.opponentPredict;
+            if (predMod && tgt) {
+                const pred = predMod.predict ? predMod.predict(tgt) : null;
+                if (pred) {
+                    f[106] = q(pred.cardDraw || 0);    // 下回合摸牌概率
+                    f[107] = q(pred.probSha || 0);     // 下回合出杀概率
+                }
+            }
+        } catch (e) {}
+
+        /* 108-109: 心理状态（对手激进程度/紧张度） */
+        try {
+            const psyMod = window.__DJSC && window.__DJSC.psychology;
+            if (psyMod && tgt) {
+                const psy = psyMod.getState ? psyMod.getState(tgt) : null;
+                if (psy) {
+                    f[108] = q(psy.aggressive || 0);   // 激进程度
+                    f[109] = q(psy.nervous || 0);      // 紧张度
+                }
+            }
+        } catch (e) {}
+
+        /* 110-111: 位置压力（下家威胁度/上家威胁度） */
+        try {
+            const seatMod = window.__DJSC && window.__DJSC.seatPressure;
+            if (seatMod) {
+                const seat = seatMod.analyze ? seatMod.analyze(me) : null;
+                if (seat) {
+                    f[110] = q(seat.nextEnemy || 0);    // 下家威胁度
+                    f[111] = q(seat.prevEnemy || 0);    // 上家威胁度
+                }
+            }
+        } catch (e) {}
+
+        /* 112-113: 团队关系（队友集火数/队友保护数） */
+        try {
+            const teamMod = window.__DJSC && window.__DJSC.teamBroadcast;
+            if (teamMod) {
+                const team = teamMod.getStatus ? teamMod.getStatus(me) : null;
+                if (team) {
+                    f[112] = q(Math.min(1, (team.focusCount || 0) / 3));   // 队友集火数
+                    f[113] = q(Math.min(1, (team.protectCount || 0) / 3)); // 队友保护数
+                }
+            }
+        } catch (e) {}
+
+        /* 114-115: 多回合规划（未来1回合收益/未来3回合收益） */
+        try {
+            const mtMod = window.__DJSC && window.__DJSC.multiturn;
+            if (mtMod) {
+                const mt = mtMod.plan ? mtMod.plan(me) : null;
+                if (mt) {
+                    f[114] = q(Math.min(1, Math.max(0, (mt.r1 || 0)) / 5));   // 未来1回合收益
+                    f[115] = q(Math.min(1, Math.max(0, (mt.r3 || 0)) / 10));  // 未来3回合收益
+                }
+            }
+        } catch (e) {}
+
+        /* 116-117: 经济系统（我的牌价值/装备价值） */
+        try {
+            const econMod = window.__DJSC && window.__DJSC.economy;
+            if (econMod) {
+                const econ = econMod.evaluate ? econMod.evaluate(me) : null;
+                if (econ) {
+                    f[116] = q(Math.min(1, (econ.handValue || 0) / 20));     // 我的牌价值
+                    f[117] = q(Math.min(1, (econ.equipValue || 0) / 10));    // 我的装备价值
+                }
+            }
+        } catch (e) {}
+
+        /* 118-119: 认知日志（模型置信度/历史冲突次数） */
+        try {
+            const cogMod = window.__DJSC && window.__DJSC.cognitiveLog;
+            if (cogMod) {
+                const cog = cogMod.stats ? cogMod.stats() : null;
+                if (cog) {
+                    f[118] = q(cog.confidence || 0);      // 模型置信度
+                    f[119] = q(Math.min(1, (cog.conflicts || 0) / 20)); // 历史冲突次数
+                }
+            }
+        } catch (e) {}
+
+        /* ================= 120-124: 全卡牌分组概率（5维） ================= */
+        try {
+            const cardMod = window.__DJSC && window.__DJSC.probHasCard;
+            if (cardMod && tgt) {
+                /* 120: 控制牌概率（过河拆桥+顺手牵羊+决斗） */
+                const pGuohe = cardMod(tgt, 'guohe') || 0;
+                const pShunshou = cardMod(tgt, 'shunshou') || 0;
+                const pJuedou = cardMod(tgt, 'juedou') || 0;
+                f[120] = q(Math.min(1, (pGuohe + pShunshou + pJuedou) / 3));
+
+                /* 121: AOE概率（南蛮入侵+万箭齐发） */
+                const pNanman = cardMod(tgt, 'nanman') || 0;
+                const pWanjian = cardMod(tgt, 'wanjian') || 0;
+                f[121] = q(Math.min(1, (pNanman + pWanjian) / 2));
+
+                /* 122: 延时锦囊概率（乐不思蜀+兵粮寸断） */
+                const pLebu = cardMod(tgt, 'lebu') || 0;
+                const pBingliang = cardMod(tgt, 'bingliang') || 0;
+                f[122] = q(Math.min(1, (pLebu + pBingliang) / 2));
+
+                /* 123: 爆发牌概率（酒+铁索连环+火攻） */
+                const pJiu = cardMod(tgt, 'jiu') || 0;
+                const pTiesuo = cardMod(tgt, 'tiesuo') || 0;
+                const pHuogong = cardMod(tgt, 'huogong') || 0;
+                f[123] = q(Math.min(1, (pJiu + pTiesuo + pHuogong) / 3));
+
+                /* 124: 过牌概率（无中生有+五谷丰登） */
+                const pWuzhong = cardMod(tgt, 'wuzhong') || 0;
+                const pWugu = cardMod(tgt, 'wugu') || 0;
+                f[124] = q(Math.min(1, (pWuzhong + pWugu) / 2));
+            }
+        } catch (e) {}
+
+        /* ================= 125-129: 完整技能标签补充（5维） ================= */
+        try {
+            const tagMod = window.__DJSC && window.__DJSC.skillTags;
+            if (tagMod && typeof tagMod.get === 'function') {
+                /* 我的完整技能标签统计 */
+                const myAllTags = { draw:0, recover:0, utility:0, survival:0 };
+                (me.skills || []).forEach(function(sid) {
+                    const tag = tagMod.get(sid);
+                    if (tag === 'draw') myAllTags.draw++;
+                    if (tag === 'recover') myAllTags.recover++;
+                    if (tag === 'utility') myAllTags.utility++;
+                    if (tag === 'survival') myAllTags.survival++;
+                });
+                f[125] = q(Math.min(1, myAllTags.draw / 2));      // 我的摸牌技能数
+                f[126] = q(Math.min(1, myAllTags.recover / 2));    // 我的回复技能数
+                f[127] = q(Math.min(1, myAllTags.utility / 2));    // 我的辅助技能数
+                f[128] = q(Math.min(1, myAllTags.survival / 2));   // 我的生存技能数
+
+                /* 目标的防御技能数 */
+                if (tgt) {
+                    let tgtDef = 0;
+                    (tgt.skills || []).forEach(function(sid) {
+                        const tag = tagMod.get(sid);
+                        if (tag === 'defense') tgtDef++;
+                    });
+                    f[129] = q(Math.min(1, tgtDef / 3));  // 目标的防御技能数
+                }
+            }
+        } catch (e) {}
+
     } catch (e) {}
 
     return f;

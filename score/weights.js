@@ -6,8 +6,9 @@ import { log } from './logger.js';
 
 const STORE_KEY = 'djsc_weights_v3';
 const VERSION = 3;
-const IN_DIM = 96, HID_DIM = 64, OUT_DIM = 6;
-const SCALE = 32;
+const IN_DIM = 96, HID_DIM = 128, OUT_DIM = 6;  /* ★ 隐藏层从64扩到128 */
+const SCALE = 128;  /* ★ 量化精度从32提到128，精度提升4倍 */
+const LEARNING_RATE = 0.1;  /* ★ 学习率从0.05提到0.1，学得更快 */
 
 export const LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
@@ -115,7 +116,7 @@ export function softmax(logits) {
 /* ---------- 单样本 SGD ---------- */
 export function trainOne(features, labelIdx, lr) {
     if (!features || labelIdx < 0 || labelIdx >= OUT_DIM) return false;
-    lr = lr || 0.01;
+    lr = lr || LEARNING_RATE;  /* ★ 使用全局学习率配置 */
     try {
         const I = IN_DIM, H = HID_DIM, O = OUT_DIM;
         const hidden = new Float32Array(H);

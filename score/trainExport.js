@@ -1,20 +1,79 @@
 /* ================= 训练数据缓冲 ================= */
 
 const MAX_SAMPLES = 3000;
+const STORAGE_KEY = 'djsc_training_samples_v1';
+
+/* ★ 从 localStorage 加载历史样本 */
+function loadFromStorage() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+                BUFFER = arr.slice(0, MAX_SAMPLES);
+                console.log('[trainExport] ✅ 从本地加载了 ' + BUFFER.length + ' 条历史样本');
+            }
+        }
+    } catch (e) {
+        console.warn('[trainExport] 加载历史样本失败：', e);
+    }
+}
+
+/* ★ 保存样本到 localStorage */
+function saveToStorage() {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(BUFFER));
+    } catch (e) {
+        console.warn('[trainExport] 保存样本失败：', e);
+    }
+}
+
 let BUFFER = [];
 let _exportCount = 0;
 
+/* 启动时自动加载历史样本 */
+loadFromStorage();
+
 export function pushSample(features, reward, meta) {
-    if (BUFFER.length >= MAX_SAMPLES) return false;
     const arr = new Array(features.length);
     for (let i = 0; i < features.length; i++) arr[i] = features[i] | 0;
-    BUFFER.push({ f: arr, r: reward | 0, m: meta || null });
+    
+    /* ★ 样本去重合并：相同特征的样本合并，权重叠加 */
+    const featKey = arr.join(',');
+    for (let i = 0; i < BUFFER.length; i++) {
+        if (BUFFER[i].f.join(',') === featKey) {
+            /* 找到相同样本，合并权重 */
+            BUFFER[i].r = Math.round((BUFFER[i].r + reward) / 2);  // 奖励取平均
+            BUFFER[i].count = (BUFFER[i].count || 1) + 1;           // 计数+1
+            BUFFER[i].ts = Date.now();                              // 更新时间
+            saveToStorage();
+            return true;
+        }
+    }
+    
+    /* ★ 样本已满，淘汰最旧的 */
+    if (BUFFER.length >= MAX_SAMPLES) {
+        let oldestIdx = 0;
+        let oldestTime = BUFFER[0].ts || 0;
+        for (let i = 1; i < BUFFER.length; i++) {
+            const t = BUFFER[i].ts || 0;
+            if (t < oldestTime) {
+                oldestTime = t;
+                oldestIdx = i;
+            }
+        }
+        BUFFER.splice(oldestIdx, 1);  // 删除最旧的
+    }
+    
+    BUFFER.push({ f: arr, r: reward | 0, m: meta || null, count: 1, ts: Date.now() });
+    /* ★ 自动保存到本地 */
+    saveToStorage();
     return true;
 }
 
 export function bufferSize() { return BUFFER.length; }
-export function bufferClear() { BUFFER = []; }
-export function resetAll() { BUFFER = []; _exportCount = 0; }
+export function bufferClear() { BUFFER = []; saveToStorage(); }
+export function resetAll() { BUFFER = []; _exportCount = 0; saveToStorage(); }
 export function getSamples() { return BUFFER; }
 export function isFull() { return BUFFER.length >= MAX_SAMPLES; }
 
@@ -88,17 +147,14 @@ export function exportAsJsonl(options) {
 export function downloadJson() {
     try {
         const json = exportAsJson();
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'djsc_training_' + Date.now() + '.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+        /* ★ 保存到完整路径：extension/无名AI/data/training/ */
+        const filename = 'djsc_training_' + Date.now() + '.json';
+        const dir = 'extension/无名AI/data/training/';
+        game.writeFile(json, dir, filename, function () {
+            console.log('[trainExport] ✅ 文件已保存到 ' + dir + filename);
+        });
         _exportCount++;
-        return { ok: true, size: (json.length / 1024).toFixed(1) + 'KB', count: BUFFER.length };
+        return { ok: true, size: (json.length / 1024).toFixed(1) + 'KB', count: BUFFER.length, file: dir + filename };
     } catch (e) {
         return { ok: false, err: String(e) };
     }
@@ -247,4 +303,111 @@ export async function exportExtendedTrainingData() {
 /* 注意：exportJSONL 不存在于当前代码库，此劫持已废弃。
  * 扩展数据通过 collectExtendedTrainingData() 单独导出，见上方。 */
 
-console.log('[trainExport] ✅ 已接入 14 个扩展训练模块');
+/* ================= ★ 导入功能（合并样本，不覆盖） ================= */
+export function importFromJson(jsonStr) {
+    try {
+        jsonStr = String(jsonStr).trim();
+        if (!jsonStr) return { ok: false, err: '文件内容为空' };
+
+        let samples = null;
+
+        /* 第1步：先试直接解析成对象 */
+        try {
+            const data = JSON.parse(jsonStr);
+            if (Array.isArray(data)) {
+                samples = data;  // 纯数组格式
+            } else if (data.samples && Array.isArray(data.samples)) {
+                samples = data.samples;  // { samples: [...] } 格式
+            } else if (data.features && Array.isArray(data.features)) {
+                samples = [data];  // 单个样本格式
+            }
+        } catch (e) {}
+
+        /* 第2步：JSONL 逐行解析 */
+        if (!samples) {
+            samples = [];
+            const lines = jsonStr.split('\n').filter(l => l.trim());
+            for (const line of lines) {
+                try {
+                    const obj = JSON.parse(line);
+                    if (Array.isArray(obj)) {
+                        samples = obj;  // 整行就是数组
+                        break;
+                    } else if (obj.samples && Array.isArray(obj.samples)) {
+                        samples = obj.samples;  // 元数据行
+                        break;
+                    } else if (obj.f || obj.features) {
+                        samples.push(obj);  // 单行样本
+                    }
+                } catch (e2) {}
+            }
+        }
+
+        /* 第3步：实在不行，把整个文件当一个大数组找 */
+        if (!samples || samples.length === 0) {
+            const match = jsonStr.match(/\[\s*\{.*\}\s*\]/s);
+            if (match) {
+                try { samples = JSON.parse(match[0]); } catch (e3) {}
+            }
+        }
+
+        if (!samples || !Array.isArray(samples)) {
+            return { ok: false, err: '格式错误：找不到样本数组（请确认是导出的训练文件）' };
+        }
+
+        let added = 0, merged = 0, skipped = 0;
+
+        for (const s of samples) {
+            const featArr = s.f || s.features || s.x;
+            if (!featArr || !Array.isArray(featArr)) { skipped++; continue; }
+            if (BUFFER.length >= MAX_SAMPLES) { skipped++; continue; }
+
+            const reward = s.r !== undefined ? s.r : (s.reward !== undefined ? s.reward : 0);
+            const featKey = featArr.join(',');
+            
+            let found = false;
+            for (let i = 0; i < BUFFER.length; i++) {
+                if (BUFFER[i].f.join(',') === featKey) {
+                    BUFFER[i].r = Math.round((BUFFER[i].r + reward) / 2);
+                    BUFFER[i].count = (BUFFER[i].count || 1) + 1;
+                    merged++;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                BUFFER.push({ f: featArr, r: reward | 0, m: s.m || s.meta || null, count: 1, ts: Date.now() });
+                added++;
+            }
+        }
+
+        saveToStorage();
+        return {
+            ok: true,
+            added: added,
+            merged: merged,
+            skipped: skipped,
+            total: BUFFER.length,
+        };
+    } catch (e) {
+        return { ok: false, err: '解析失败：' + String(e) };
+    }
+}
+
+/* 导出成友好格式（方便导入） */
+export function exportForImport() {
+    return JSON.stringify({
+        version: 1,
+        exportedAt: Date.now(),
+        count: BUFFER.length,
+        samples: BUFFER,
+    });
+}
+
+/* 面板接口 */
+export function trainImport(jsonStr) {
+    return importFromJson(jsonStr);
+}
+
+console.log('[trainExport] ✅ 已接入 14 个扩展训练模块 + 导入/导出功能');

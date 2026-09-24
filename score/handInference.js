@@ -181,10 +181,52 @@ export function inferHand(player) {
 			tao: probHasTao(player),
 			sha: probHasSha(player),
 			jiu: probHasJiu(player),
+			guohe: probHasCard(player, 'guohe'),
+			shunshou: probHasCard(player, 'shunshou'),
+			juedou: probHasCard(player, 'juedou'),
+			nanman: probHasCard(player, 'nanman'),
+			wanjian: probHasCard(player, 'wanjian'),
+			lebu: probHasCard(player, 'lebu'),
+			bingliang: probHasCard(player, 'bingliang'),
+			tiesuo: probHasCard(player, 'tiesuo'),
+			wuzhong: probHasCard(player, 'wuzhong'),
+			huogong: probHasCard(player, 'huogong'),
 		};
 	} catch (e) {
 		return { shan: 0.5, wuxie: 0.15, tao: 0.1, sha: 0.4, jiu: 0.05 };
 	}
+}
+
+/* ================= 通用卡牌推断函数 ================= */
+export function probHasCard(player, cardId) {
+	_syncCache();
+	const key = cardId + '_' + (player.name1 || player.name || '?');
+	if (_inferCache.has(key)) return _inferCache.get(key);
+
+	try {
+		const cardRemain = cardRemaining(cardId);
+		const total = totalRemaining();
+		if (total <= 0) return 0.05;
+
+		const handCount = player.countCards ? player.countCards('h') : 0;
+		if (handCount <= 0) return 0;
+
+		/* 不同卡牌类型的最大概率限制 */
+		const maxProb = {
+			'guohe': 0.3, 'shunshou': 0.3, 'juedou': 0.2,
+			'nanman': 0.1, 'wanjian': 0.1, 'taoyuan': 0.05,
+			'wugu': 0.05, 'lebu': 0.2, 'bingliang': 0.2,
+			'tiesuo': 0.15, 'wuzhong': 0.3, 'huogong': 0.15,
+			'jiedao': 0.15, 'shandian': 0.05,
+		};
+		const maxP = maxProb[cardId] || 0.2;
+
+		const pPerCard = Math.min(maxP, cardRemain / total);
+		const p = 1 - Math.pow(1 - pPerCard, handCount);
+
+		_inferCache.set(key, p);
+		return p;
+	} catch (e) { return 0.05; }
 }
 
 /* ================= 8. 清空缓存 ================= */

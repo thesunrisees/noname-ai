@@ -93,6 +93,16 @@ extensionPackage.uninstall = function () {
 /* ★ 挂载校验相关接口到 window.__DJSC（直接内联，避免加载失败） */
 window.__DJSC = window.__DJSC || {};
 
+/* ★ 提前挂载训练数据导入/导出（扩展加载时就可用，不用进对局） */
+import('./score/trainExport.js').then(function (m) {
+    window.__DJSC.trainExport = function() { return m.exportForImport(); };
+    window.__DJSC.trainImport = function(jsonStr) { return m.importFromJson(jsonStr); };
+    window.__DJSC.trainBufferSize = function() { return m.bufferSize(); };
+    console.log('[extension] ✅ trainExport/trainImport 已挂载（提前加载）');
+}).catch(function (e) {
+    console.warn('[extension] trainExport 加载失败:', e);
+});
+
 /* 合法性校验函数（直接内联，不依赖 allyExempt.js） */
 window.__DJSC.checkAllyExempt = function (me, target, cardName) {
     try {

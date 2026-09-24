@@ -299,8 +299,17 @@ function _buildHtml() {
     h += '<br>';
 
     h += '<div style="text-align:center; margin-top:12px; padding-top:8px; border-top:1px solid #2a3a5a;">';
-    h += '<button id="djsc-brain-refresh" style="background:#2a6; color:#fff; border:none; padding:5px 12px; border-radius:4px; cursor:pointer; margin-right:4px;">🔄 刷新</button>';
-    h += '<button id="djsc-brain-reset-all" style="background:#c33; color:#fff; border:none; padding:5px 12px; border-radius:4px; cursor:pointer;">🗑️ 重置所有学习数据</button>';
+    /* 查看类按钮 */
+    h += '<div style="font-size:10px; color:#7ad; margin-bottom:4px;">👀 查看</div>';
+    h += '<button id="djsc-brain-refresh" style="background:#2a6; color:#fff; border:none; padding:6px 14px; border-radius:4px; cursor:pointer; margin:2px; font-size:12px;">🔄 刷新面板</button>';
+    h += '<button id="djsc-brain-show-features" style="background:#48c; color:#fff; border:none; padding:6px 14px; border-radius:4px; cursor:pointer; margin:2px; font-size:12px;">📊 查看130维特征</button>';
+    h += '</div>';
+
+    /* 危险操作 */
+    h += '<div style="text-align:center; margin-top:10px; padding-top:8px; border-top:1px dashed #a33;">';
+    h += '<div style="font-size:10px; color:#a66; margin-bottom:4px;">⚠️ 危险操作（不可恢复）</div>';
+    h += '<button id="djsc-brain-reset-all" style="background:#c33; color:#fff; border:none; padding:6px 14px; border-radius:4px; cursor:pointer; font-size:12px;">🗑️ 清空所有学习数据</button>';
+    h += '<div style="font-size:10px; color:#688; margin-top:4px;">💡 导出/导入功能在扩展设置里</div>';
     h += '</div>';
 
     h += '</div>';
@@ -321,6 +330,10 @@ function _bindButtons() {
             if (panels.length) panels[panels.length - 1].remove();
             openBrainDashboard();
         });
+        const featBtn = document.getElementById('djsc-brain-show-features');
+        if (featBtn) featBtn.addEventListener('click', function () {
+            showFeatures();
+        });
         const resetBtn = document.getElementById('djsc-brain-reset-all');
         if (resetBtn) resetBtn.addEventListener('click', function () {
             if (!confirm('重置所有学习数据？\n将清空：校准器/认知日志/冲突/多档案/策略总线/护栏\n此操作不可恢复！')) return;
@@ -335,10 +348,150 @@ function _bindButtons() {
             const panels = document.querySelectorAll('.dialog.fullheight');
             if (panels.length) panels[panels.length - 1].remove();
         });
+
+        /* ★ 导出按钮（用 game.writeFile 保存到 data 文件夹） */
+        const exportBtn = document.getElementById('djsc-brain-export');
+        if (exportBtn) exportBtn.addEventListener('click', function () {
+            try {
+                const json = window.__DJSC.trainExport ? window.__DJSC.trainExport() : '{}';
+                const filename = '无名AI学习数据_' + Date.now() + '.json';
+                game.writeFile(json, 'data', filename, function () {
+                    alert('✅ 导出成功！\n\n文件已保存到：\ndata/' + filename);
+                });
+            } catch (e) {
+                alert('❌ 导出失败：' + e);
+            }
+        });
+
+        /* ★ 导入按钮 */
+        const importBtn = document.getElementById('djsc-brain-import');
+        if (importBtn) importBtn.addEventListener('click', function () {
+            const input = prompt('请粘贴别人发给你的学习数据JSON：\n（太长可以分段粘贴，建议用文件）');
+            if (!input) return;
+            try {
+                const result = window.__DJSC.trainImport ? window.__DJSC.trainImport(input) : { ok: false, err: '功能未加载' };
+                if (result.ok) {
+                    alert('✅ 导入成功！\n\n新增样本：' + result.added + ' 条\n合并样本：' + result.merged + ' 条\n跳过样本：' + result.skipped + ' 条\n\n当前总样本：' + result.total + ' 条');
+                    const panels = document.querySelectorAll('.dialog.fullheight');
+                    if (panels.length) panels[panels.length - 1].remove();
+                    openBrainDashboard();
+                } else {
+                    alert('❌ 导入失败：' + result.err);
+                }
+            } catch (e) {
+                alert('❌ 导入失败：' + e);
+            }
+        });
     } catch (e) {}
 }
 
 if (typeof window !== 'undefined') {
     window.__DJSC = window.__DJSC || {};
     window.__DJSC.openBrainDashboard = openBrainDashboard;
+}
+
+/* ================= 特征实时显示面板 ================= */
+export function showFeatures() {
+    try {
+        const me = game.me;
+        if (!me) { alert('游戏未开始'); return; }
+
+        /* 动态导入 features.js */
+        import('./features.js').then(function(featMod) {
+            const { extractFeatures, FEATURE_DIM } = featMod;
+            const feat = new Int8Array(FEATURE_DIM);
+            extractFeatures(me, { type: 'end', id: 'end' }, {}, feat,
+                (game.players || []).filter(function(p) { return p && p.alive !== false; })
+            );
+
+            /* 特征名称 */
+            const names = [
+                // 0-31 状态特征
+                '0:我的血量', '1:我的手牌数', '2:我的装备数', '3:我的总价值',
+                '4:我的血量比例', '5:手牌平均价值', '6:装备平均价值', '7:存活玩家数',
+                '8:敌方存活数', '9:友方存活数', '10:下一玩家距离', '11:上一玩家距离',
+                '12:牌堆剩余', '13:弃牌堆剩余', '14:当前回合数', '15:游戏阶段',
+                '16:我有杀', '17:我有闪', '18:我有桃', '19:我有酒',
+                '20:我有无懈', '21:我有决斗', '22:我有AOE', '23:我有武器',
+                '24:我有防具', '25:我有+1马', '26:我有-1马', '27:我有连弩',
+                '28:我有八卦阵', '29:我有仁王盾', '30:我有藤甲', '31:我有狮子',
+                // 32-47 动作特征
+                '32:动作类型', '33:目标距离', '34:目标血量', '35:目标手牌数',
+                '36:目标装备数', '37:目标血量比例', '38:是否可反击', '39:是否有闪',
+                '40:是否有桃', '41:是否有酒', '42:是否有无懈', '43:是否有防具',
+                '44:是否有马', '45:是否有武器', '46:是否残血', '47:是否满血',
+                // 48-63 时序特征
+                '48:节奏模式', '49:节奏阶段', '50:基础节奏分', '51:攻击倍率',
+                '52:防守倍率', '53:爆发倍率', '54:风险等级', '55:进攻风险',
+                '56:防守安全', '57:团队焦点', '58:焦点分数', '59:团队保护',
+                '60:保护分数', '61:团队连招数', '62:座位压力', '63:下一敌人',
+                // 64-79 相对强度特征
+                '64:我的进攻力', '65:我的防御力', '66:我的爆发力', '67:我的控制力',
+                '68:我的辅助力', '69:目标进攻力', '70:目标防御力', '71:目标爆发力',
+                '72:目标控制力', '73:目标辅助力', '74:我vs目标进攻', '75:我vs目标防御',
+                '76:我vs目标爆发', '77:我vs目标控制', '78:我vs目标辅助', '79:综合差距',
+                // 80-95 概率/牌堆特征
+                '80:目标有闪概率', '81:目标有桃概率', '82:目标有无懈概率', '83:目标有杀概率',
+                '84:目标有酒概率', '85:牌堆闪比例', '86:牌堆杀比例', '87:牌堆桃比例',
+                '88:牌堆总数比例', '89:下一回合威胁', '90:下一回合自伤', '91:下一回合击杀',
+                '92:游戏阶段', '93:规则胜率', '94:冲突率', '95:样本数量',
+                // 96-119 面板扩展特征
+                '96:我的攻击技能数', '97:我的防御技能数', '98:我的爆发技能数', '99:我的控制技能数',
+                '100:目标攻击技能数', '101:目标爆发技能数', '102:对手进攻倾向', '103:对手仇恨度',
+                '104:可触发连招数', '105:连招威胁度', '106:对手摸牌概率', '107:对手出杀概率',
+                '108:对手激进程度', '109:对手紧张度', '110:下家威胁度', '111:上家威胁度',
+                '112:队友集火数', '113:队友保护数', '114:未来1回合收益', '115:未来3回合收益',
+                '116:我的牌价值', '117:我的装备价值', '118:模型置信度', '119:历史冲突次数',
+            ];
+
+            /* 生成HTML */
+            let html = '<div style="padding:16px; max-height:70vh; overflow-y:auto;">';
+            html += '<div style="text-align:center; margin-bottom:16px; font-size:16px; color:#7fe3a0;">';
+            html += '当前特征值（' + FEATURE_DIM + '维）';
+            html += '</div>';
+
+            /* 按组显示 */
+            const groups = [
+                { name: '状态特征 (0-31)', start: 0, end: 32 },
+                { name: '动作特征 (32-47)', start: 32, end: 48 },
+                { name: '时序特征 (48-63)', start: 48, end: 64 },
+                { name: '相对强度 (64-79)', start: 64, end: 80 },
+                { name: '概率/牌堆 (80-95)', start: 80, end: 96 },
+                { name: '面板扩展 (96-119)', start: 96, end: 120 },
+            ];
+
+            groups.forEach(function(g) {
+                html += '<div style="margin:12px 0 6px; font-size:13px; color:#7fd4e3; border-bottom:1px solid #333; padding-bottom:4px;">' + g.name + '</div>';
+                html += '<div style="display:grid; grid-template-columns:1fr 1fr; gap:2px 12px; font-size:11px;">';
+                for (let i = g.start; i < g.end && i < FEATURE_DIM; i++) {
+                    const v = feat[i];
+                    const color = v > 60 ? '#7fe3a0' : (v > 20 ? '#ffd43b' : '#ff6b6b');
+                    html += '<div style="display:flex; justify-content:space-between; padding:1px 0;">';
+                    html += '<span style="color:#a8b8c8;">' + (names[i] || ('特征' + i)) + '</span>';
+                    html += '<span style="color:' + color + '; font-weight:bold;">' + v + '</span>';
+                    html += '</div>';
+                }
+                html += '</div>';
+            });
+
+            html += '</div>';
+
+            /* 打开面板 */
+            const dlg = ui.create.dialog('特征实时显示');
+            dlg.classList.add('fullheight');
+            dlg.style.width = 'min(92vw, 500px)';
+            dlg.style.left = '4vw';
+            dlg.content.innerHTML = html;
+        }).catch(function(e) {
+            alert('加载特征模块失败：' + e.message);
+        });
+
+    } catch (e) {
+        alert('显示特征失败：' + e.message);
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.__DJSC = window.__DJSC || {};
+    window.__DJSC.showFeatures = showFeatures;
 }

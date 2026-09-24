@@ -29,7 +29,7 @@ import { refineBestWithPlan, planSequence } from './planner.js';
 import { strategize } from './strategist.js';
 import { getModeStrategy, isSameCamp, isEnemy, applyModeBoost } from './modeStrategy.js';
 /* ===== 24 个优化模块 ===== */
-import { probHasWuxie, probHasTao, probHasSha, probHasJiu } from './handInference.js';
+import { probHasWuxie, probHasTao, probHasSha, probHasJiu, probHasCard, inferHand } from './handInference.js';
 import { keepScore, recommendKeep } from './keepStrategy.js';
 import { equipScarcity, equipValue, isKeyEquip } from './equipScarcity.js';
 import { analyzeTeammateIntent, analyzeTeammateStrategy, teammateCoordination, recordTeammateAction } from './teammateIntent.js';
@@ -205,6 +205,8 @@ try {
     window.__DJSC.probHasWuxie = probHasWuxie;
     window.__DJSC.probHasSha = probHasSha;
     window.__DJSC.probHasJiu = probHasJiu;
+    window.__DJSC.probHasCard = probHasCard;  // 通用卡牌推断
+    window.__DJSC.inferHand = inferHand;      // 批量推断所有手牌
     window.__DJSC.seatPressure = seatPressure;
     window.__DJSC.cardValueOf = cardValueOf;
     window.__DJSC.enemiesOf = enemiesOf;
@@ -239,6 +241,41 @@ try {
     window.__DJSC.cfg = cfg;
     window.__DJSC.weightsReady = weightsReady;
 } catch (e) { console.error('挂载新模块失败:', e); }
+
+/* ★ 单独挂载技能标签系统（不在 try 块里，确保一定能挂载） */
+try {
+    window.__DJSC = window.__DJSC || {};
+    window.__DJSC.skillTags = {
+        get: skillTagsOf,
+        playerTags: function(p) { 
+            const tags = { attack:0, defense:0, burst:0, control:0, draw:0, recover:0, utility:0, survival:0 };
+            (p && p.skills ? p.skills : []).forEach(function(sid) {
+                try {
+                    const t = skillTagsOf(sid);
+                    if (tags[t] !== undefined) tags[t]++;
+                } catch (e2) {}
+            });
+            return tags;
+        },
+    };
+    /* ★ 挂载训练数据导入/导出功能 */
+    const te = window.__DJSC.__trainExportModule;
+    if (te && te.exportForImport) {
+        window.__DJSC.trainExport = function() { return te.exportForImport(); };
+        window.__DJSC.trainImport = function(jsonStr) { return te.importFromJson(jsonStr); };
+        console.log('[engine] ✅ trainExport/trainImport 已挂载');
+    }
+    /* ★ 自动创建 data 文件夹 */
+    try {
+        game.writeFile('', 'data', '.gitkeep', function() {});
+        console.log('[engine] ✅ data 文件夹已就绪');
+    } catch (eData) {
+        console.warn('[engine] data 文件夹创建失败：', eData);
+    }
+    console.log('[engine] ✅ skillTags 已手动挂载');
+} catch (eMount) {
+    console.error('[engine] ❌ skillTags 挂载失败:', eMount);
+}
 
 let round = {};
 let _rawRound = {};
@@ -2590,25 +2627,25 @@ function bestAction() {
 			}
 		} catch (eP) {}
 
-			/* ★ P0-1 性能优化：只给前5个高分动作算特征，大幅减少计算量 */
-			try {
-				const _buf = new Int8Array(FEATURE_DIM);
-				const ctx = {
-					bestT: bestT,
-					bestTs: bestTs,
-					isEnemy: bestT ? isEnemyOf(me, bestT) : false,
-					focusTarget: focus ? focus.target : null,
-				};
-				/* 只给前 5 个高分动作算特征（够模型选了） */
-				const topN = Math.min(5, acts.length);
-				for (let i = 0; i < topN; i++) {
-					try {
-						if (performance.now() - _perfT0 > 15) break; // 15ms 硬限制
-						const f = extractFeatures(me, acts[i], ctx, _buf, alivePlayers);
-						acts[i]._feat = Array.from(f);
-					} catch (e) {}
-				}
-			} catch (eFeat) {}
+		/* ★ P0-1 精度模式：给所有动作算特征，学得最全 */
+		try {
+			const _buf = new Int8Array(FEATURE_DIM);
+			const ctx = {
+				bestT: bestT,
+				bestTs: bestTs,
+				isEnemy: bestT ? isEnemyOf(me, bestT) : false,
+				focusTarget: focus ? focus.target : null,
+			};
+			/* 精度模式：给所有动作都算特征，不要只给前5个 */
+			for (let i = 0; i < acts.length; i++) {
+				try {
+					/* 精度模式：时间限制放宽到 100ms */
+					if (performance.now() - _perfT0 > 100) break;
+					const f = extractFeatures(me, acts[i], ctx, _buf, alivePlayers);
+					acts[i]._feat = Array.from(f);
+				} catch (e) {}
+			}
+		} catch (eFeat) {}
 		/* ★ 用训练好的模型微调（best 已确定，可安全访问 best._feat） */
 		try {
 			if (weightsReady() && cfg('useTrainedModel', true) && best && best._feat) {
@@ -2631,6 +2668,8 @@ function bestAction() {
 					} catch (e) {}
 					const wModel = Math.max(0.05, Math.min(0.7, baseW - calibTrust));
 					if (true) { // 强制允许模型接管，不管置信度多低
+						let _takeoverCount = 0;  /* ★ 统计本轮接管次数 */
+						let _lastMLog = '';
 						for (let i = 0; i < acts.length; i++) {
 							const a = acts[i];
 							if (!a._feat) continue;
@@ -2642,7 +2681,12 @@ function bestAction() {
 							a.score = Math.round(a.score * (1 - wModel) + modelStrength * wModel);
 							var mLog = '[M:' + sub.label + '·' + intervention + '·F' + Math.round(metaMod.familiarity * 100) + '%]';
 							a.reason = (a.reason || '') + mLog;
-							try { game.log('模型接管：' + mLog); } catch (e) {}
+							_takeoverCount++;
+							_lastMLog = mLog;
+						}
+						/* ★ 日志合并：只打一行汇总 */
+						if (_takeoverCount > 0) {
+							try { game.log('模型接管 ×' + _takeoverCount + ' 个动作 ' + _lastMLog); } catch (e) {}
 						}
 					}
 					try {
@@ -3315,6 +3359,115 @@ function settle() {
 				m.autoRegister();
 			});
 		} catch (eScan) {}
+		/* ★ 玩家评分反馈：每4-5局弹出一次，让玩家给AI表现打分 */
+		try {
+			const feedbackKey = "无名AI_playerFeedback";
+			const feedbackData = JSON.parse(localStorage.getItem(feedbackKey) || '{"games":0,"scores":[],"skipped":0}');
+			feedbackData.games = (feedbackData.games || 0) + 1;
+			/* 每5局触发一次评分 */
+			const shouldAsk = (feedbackData.games % 5 === 0);
+			if (shouldAsk && cfg("playerFeedback", true) !== false) {
+				const me = game.me;
+				const myKey = me ? (me.name || me.name1 || "?") : "?";
+				const myScore = (round && round[myKey]) || 0;
+				const winText = myScore > 0 ? '胜利' : (myScore < 0 ? '失败' : '平局');
+				setTimeout(function () {
+					try {
+						/* 用无名杀原生对话框 */
+						const dlg = ui.create.dialog('无名AI 体验反馈');
+						dlg.classList.add('fullheight');
+						dlg.style.width = 'min(92vw, 480px)';
+						dlg.style.left = '4vw';
+						/* 内容 */
+						const content = document.createElement('div');
+						content.style.padding = '16px';
+						content.innerHTML =
+							'<div style="text-align:center; margin-bottom:16px;">' +
+							'<div style="font-size:16px; margin-bottom:8px;">本局结果：<b>' + winText + '</b></div>' +
+							'<div style="color:#999; font-size:13px;">你觉得AI的表现怎么样？点选一个分数</div>' +
+							'</div>' +
+							'<div style="display:flex; justify-content:center; gap:8px; margin-bottom:16px; flex-wrap:wrap;">' +
+							[-5,-4,-3,-2,-1,0,1,2,3,4,5].map(function(s) {
+								const color = s < 0 ? '#ff6b6b' : (s > 0 ? '#51cf66' : '#ffd43b');
+								const label = s < 0 ? s : (s > 0 ? '+' + s : '0');
+								return '<button data-score="' + s + '" style="width:40px; height:40px; border-radius:50%; border:2px solid ' + color + '; background:rgba(255,255,255,0.1); color:' + color + '; font-size:14px; cursor:pointer;">' + label + '</button>';
+							}).join('') +
+							'</div>' +
+							'<div style="background:rgba(0,0,0,0.2); border-radius:8px; padding:12px; margin-bottom:16px; font-size:12px; line-height:1.8;">' +
+							'<div style="color:#ff6b6b; margin-bottom:4px;">【差评区】</div>' +
+							'<div>−5分：完全不会玩，低级错误频发</div>' +
+							'<div>−4分：很离谱，决策明显错误</div>' +
+							'<div>−3分：较差，经常选错目标/时机</div>' +
+							'<div>−2分：一般偏差，偶尔犯傻</div>' +
+							'<div>−1分：小问题，基本能打但不聪明</div>' +
+							'<div style="color:#ffd43b; margin:6px 0 4px;">【中性区】</div>' +
+							'<div>0分：中规中矩，像普通玩家</div>' +
+							'<div style="color:#51cf66; margin:6px 0 4px;">【好评区】</div>' +
+							'<div>+1分：还不错，决策比较合理</div>' +
+							'<div>+2分：良好，思路清晰</div>' +
+							'<div>+3分：不错，像会玩的玩家</div>' +
+							'<div>+4分：很好，有配合意识</div>' +
+							'<div>+5分：非常好，像高手大神</div>' +
+							'</div>' +
+							'<div style="text-align:center;">' +
+							'<button id="skipFeedback" style="padding:8px 24px; border-radius:20px; border:none; background:rgba(255,255,255,0.2); color:#ccc; font-size:14px; cursor:pointer;">跳过本次反馈</button>' +
+							'</div>';
+						dlg.content.appendChild(content);
+						/* 绑定按钮事件 */
+						content.querySelectorAll('button[data-score]').forEach(function(btn) {
+							btn.onclick = function() {
+								const s = parseInt(btn.getAttribute('data-score'));
+								feedbackData.scores.push({
+									games: feedbackData.games,
+									score: s,
+									result: winText,
+									time: Date.now()
+								});
+								if (feedbackData.scores.length > 20) feedbackData.scores = feedbackData.scores.slice(-20);
+								localStorage.setItem(feedbackKey, JSON.stringify(feedbackData));
+								dlg.close();
+							};
+						});
+						const skipBtn = content.querySelector('#skipFeedback');
+						if (skipBtn) {
+							skipBtn.onclick = function() {
+								feedbackData.skipped = (feedbackData.skipped || 0) + 1;
+								localStorage.setItem(feedbackKey, JSON.stringify(feedbackData));
+								dlg.close();
+							};
+						}
+					} catch (eDlg) {
+						/* 弹窗失败，降级用 prompt */
+						const score = window.prompt(
+							'【无名AI 体验反馈】\n本局结果：' + winText + '\n' +
+							'给AI表现打分（-5到+5，0=跳过）：'
+						);
+						if (score !== null && score !== '' && parseInt(score) !== 0) {
+							const s = parseInt(score);
+							if (s >= -5 && s <= 5) {
+								feedbackData.scores.push({ games: feedbackData.games, score: s, result: winText, time: Date.now() });
+							}
+						} else {
+							feedbackData.skipped = (feedbackData.skipped || 0) + 1;
+						}
+						localStorage.setItem(feedbackKey, JSON.stringify(feedbackData));
+					}
+				}, 5000);
+			}
+			localStorage.setItem(feedbackKey, JSON.stringify(feedbackData));
+			/* ★ 精度模式：把玩家评分接入模型，调整最近样本权重 */
+			try {
+				if (feedbackData.scores && feedbackData.scores.length > 0) {
+					const latestScore = feedbackData.scores[feedbackData.scores.length - 1].score;
+					/* 评分 -5~+5 → 权重倍数 0.5~1.5 */
+					const weightMul = 1 + latestScore / 10;
+					/* 调整最近20条样本的权重 */
+					if (window.__DJSC && window.__DJSC.training && window.__DJSC.training.adjustRecentWeights) {
+						window.__DJSC.training.adjustRecentWeights(weightMul, 20);
+					}
+				}
+			} catch (eAdj) {}
+		} catch (eFeedback) {}
 	} catch (e) {}
 }
 /* ================= 终局信号统一判断 =================
@@ -3587,6 +3740,12 @@ export { give, givePair, giveVs, scoreCardUse, scoreEffect, installHooks, uninst
   window.__DJSC = window.__DJSC || {};
   window.__DJSC.__weightsModule = _weightsModule;
   window.__DJSC.__trainExportModule = _trainExportModule;
+
+  /* ★ 提前挂载训练数据导入/导出（扩展加载时就可用，不用进对局） */
+  window.__DJSC.trainExport = function() { return _trainExportModule.exportForImport(); };
+  window.__DJSC.trainImport = function(jsonStr) { return _trainExportModule.importFromJson(jsonStr); };
+  window.__DJSC.trainBufferSize = function() { return _trainExportModule.bufferSize(); };
+
   window.__DJSC.charStore = {
     update: updateCharStats,
     top: getTopChars,
