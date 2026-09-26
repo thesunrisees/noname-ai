@@ -3615,6 +3615,30 @@ function settle() {
 			const feedbackKey = "无名AI_playerFeedback";
 			const feedbackData = JSON.parse(localStorage.getItem(feedbackKey) || '{"games":0,"scores":[],"skipped":0}');
 			feedbackData.games = (feedbackData.games || 0) + 1;
+			/* ★ 安全保存：localStorage 满时静默降级，避免 QuotaExceededError 弹错误框打断对局 */
+			const _fbTrySave = (function () {
+				let saving = false;
+				return function () {
+					if (saving) return;
+					saving = true;
+					try {
+						localStorage.setItem(feedbackKey, JSON.stringify(feedbackData));
+					} catch (e) {
+						/* 降级：只保留最近5条评分并重置跳过计数，再试一次 */
+						try {
+							if (feedbackData.scores && feedbackData.scores.length > 0) {
+								feedbackData.scores = feedbackData.scores.slice(-5);
+							}
+							feedbackData.skipped = 0;
+							localStorage.setItem(feedbackKey, JSON.stringify(feedbackData));
+						} catch (e2) {
+							/* 存储彻底满，本次跳过写入，不打扰玩家 */
+						}
+					} finally {
+						saving = false;
+					}
+				};
+			})();
 			/* 每5局触发一次评分 */
 			const shouldAsk = (feedbackData.games % 5 === 0);
 			if (shouldAsk && cfg("playerFeedback", true) !== false) {
@@ -3675,7 +3699,7 @@ function settle() {
 									time: Date.now()
 								});
 								if (feedbackData.scores.length > 20) feedbackData.scores = feedbackData.scores.slice(-20);
-								localStorage.setItem(feedbackKey, JSON.stringify(feedbackData));
+								_fbTrySave();
 								dlg.close();
 							};
 						});
@@ -3683,7 +3707,7 @@ function settle() {
 						if (skipBtn) {
 							skipBtn.onclick = function() {
 								feedbackData.skipped = (feedbackData.skipped || 0) + 1;
-								localStorage.setItem(feedbackKey, JSON.stringify(feedbackData));
+								_fbTrySave();
 								dlg.close();
 							};
 						}
@@ -3701,11 +3725,11 @@ function settle() {
 						} else {
 							feedbackData.skipped = (feedbackData.skipped || 0) + 1;
 						}
-						localStorage.setItem(feedbackKey, JSON.stringify(feedbackData));
+						_fbTrySave();
 					}
 				}, 5000);
 			}
-			localStorage.setItem(feedbackKey, JSON.stringify(feedbackData));
+			_fbTrySave();
 			/* ★ 精度模式：把玩家评分接入模型，调整最近样本权重 */
 			try {
 				if (feedbackData.scores && feedbackData.scores.length > 0) {

@@ -115,7 +115,7 @@ function _initRandom() {
     for (let i = 0; i < W_proj1.length; i++) W_proj1[i] = ((Math.random() * 2 - 1) * lim / 4) | 0;  /* ★ 投影矩阵初始值小一点 */
     for (let i = 0; i < W_proj2.length; i++) W_proj2[i] = ((Math.random() * 2 - 1) * lim / 4) | 0;  /* ★ 投影矩阵初始值小一点 */
     
-    currentLR = LEARNING_RATE;  /* 重置学习率 */
+    currentLR = _getLearningRate();  /* 重置学习率（从配置读取） */
     META.ready = false;
 }
 
