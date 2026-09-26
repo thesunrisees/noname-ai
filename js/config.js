@@ -29,7 +29,7 @@ import { changelog } from './changelog.js';
  import { nei } from './nei.js';
 export let config = {
 	/* ===== 主标题 ===== */
-	djscBd: { clear: true, name: '<hr aria-hidden="true"><div style="color: #00FFB0; text-align:center; font-size: 16px; padding: 10px;">📊 决策积分引擎 v4.55.4</div>' },
+	djscBd: { clear: true, name: '<hr aria-hidden="true"><div style="color: #00FFB0; text-align:center; font-size: 16px; padding: 10px;">📊 决策积分引擎 v4.56.0</div>' },
 
 	/* ===== 🎛️ 功能面板按钮（大按钮） ===== */
 	panelBd: { clear: true, name: '<hr aria-hidden="true"><div class="djsc-config-section-title">功能面板（点击打开）</div>' },
@@ -595,11 +595,35 @@ export let config = {
 			init: false,
 		},
 
+		/* 🎚️ AI 强度档位：直接缩放模型对决策的影响力。选"弱/极弱"可明显降低 AI 准确度，打得"菜"一点 */
+		aiStrength: {
+			name: '🎚️ AI 强度（模型影响力档位，弱=故意打不准）',
+			init: '中',
+			intro: '档位越低，模型对决策的按权越弱，AI 越容易犯错：极弱≈随机/菜鸟、弱=明显放水、中=平衡推荐、强=全力发挥、极强=近乎完美。只缩放模型AI强度，不影响规则/战术等其它层。',
+			item: {
+				'极弱': '极弱（最菜·纯新手）',
+				'弱': '弱（明显放水·休闲）',
+				'中': '中（平衡推荐）',
+				'强': '强（全力发挥）',
+				'极强': '极强（接近完美）',
+			},
+		},
+
 		learningRate: {
 			name: '📈 学习率（越大训练越快）',
 			init: '0.005',
-			intro: '0.001~0.01，默认0.005平衡',
+			intro: '0.00005~0.01，默认0.005平衡',
 			item: {
+				'0.00005': '0.00005（近冻结，几乎不学）',
+				'0.0001': '0.0001（极慢极限）',
+				'0.0002': '0.0002（极慢超微）',
+				'0.0003': '0.0003（极慢微稳）',
+				'0.0004': '0.0004（极慢很稳）',
+				'0.0005': '0.0005（极慢稳）',
+				'0.0006': '0.0006（很慢稳）',
+				'0.0007': '0.0007（很慢偏稳）',
+				'0.0008': '0.0008（很慢）',
+				'0.0009': '0.0009（慢超稳）',
 				'0.001': '0.001（极慢超稳）',
 				'0.002': '0.002（很慢很稳）',
 				'0.003': '0.003（慢但稳）',
@@ -676,28 +700,40 @@ export let config = {
 
 		showModelStatus: {
 			name: '<button class="djsc-menu-config-btn">查看模型状态</button>',
-			intro: '查看当前模型的训练状态和准确率',
+			intro: '查看当前模型的训练状态和准确率，并给出动态学习建议',
 			onclick: function () {
-				try {
-					let state = 'unknown';
-					let gamesSince = 0;
-					let accuracy = 0;
-					let ready = false;
+				/* ★ 动态推荐引擎：随「样本量 + 校准信任 + 准确率 + 阶段」实时变化。
+				 * 目标：让模型始终处于学习状态，不过拟合、不污染、不休闲躺平。 */
+				async function _recommend() {
+					let state = 'progress', gamesSince = 0, accuracy = 0, ready = false;
+					let sampleCount = 0, calibTrust = 0, lr = 0.005;
 					try { state = window.__DJSC.modelState.getState(); } catch (e) {}
 					try { gamesSince = window.__DJSC.modelState.getGamesSince(); } catch (e) {}
 					try { ready = window.__DJSC.weightsReady(); } catch (e) {}
-					try {
-						import('../score/weights.js').then(function (m) {
-							accuracy = m.getAccuracy();
-							alert('模型状态：' + state +
-								'\n当前阶段局数：' + gamesSince +
-								'\n模型就绪：' + (ready ? '是' : '否') +
-								'\n模型准确率：' + (accuracy * 100).toFixed(1) + '%');
-						});
-					} catch (e) {}
-				} catch (e) {
-					alert('查看失败：' + e.message);
+					try { accuracy = (await import('../score/weights.js')).getAccuracy() || 0; } catch (e) {}
+					try { sampleCount = (await import('../score/trainExport.js')).bufferSize() || 0; } catch (e) {}
+					try { calibTrust = (window.__DJSC.calibrator && window.__DJSC.calibrator.modelTrust()) || 0; } catch (e) {}
+					try { lr = Number((await import('../score/util.js')).cfg('learningRate', 0.005)) || 0.005; } catch (e) {}
+
+					/* ★ 动态推荐统一走共享函数（模型状态面板 & 训练完成弹窗同口径） */
+					if (window.__DJSC && window.__DJSC.recommend) {
+						return await window.__DJSC.recommend();
+					}
+					return '  1. 推荐功能未就绪';
 				}
+
+				_recommend().then(function (rec) {
+					let state = 'progress', gamesSince = 0, accuracy = 0, ready = false;
+					try { state = window.__DJSC.modelState.getState(); } catch (e) {}
+					try { gamesSince = window.__DJSC.modelState.getGamesSince(); } catch (e) {}
+					try { ready = window.__DJSC.weightsReady(); } catch (e) {}
+					try { accuracy = window.__DJSC.getAccuracy ? window.__DJSC.getAccuracy() : 0; } catch (e) {}
+					alert('模型状态：' + state +
+						'\n当前阶段局数：' + gamesSince +
+						'\n模型就绪：' + (ready ? '是' : '否') +
+						'\n模型准确率：' + (accuracy * 100).toFixed(1) + '%' +
+						'\n—— 动态推荐 · 保持学习 ——\n' + rec);
+				}).catch(function () { alert('查看失败：模型模块未就绪'); });
 				return false;
 			}
 		},

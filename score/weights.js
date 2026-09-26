@@ -44,7 +44,7 @@ function _getLearningRate() {
     try {
         const lr = parseFloat(cfg('learningRate', DEFAULT_LR));
         if (isNaN(lr) || lr <= 0) return DEFAULT_LR;
-        return Math.min(0.01, Math.max(0.001, lr));  /* 限制在0.001~0.01之间 */
+        return Math.min(0.01, Math.max(0.00005, lr));  /* 放宽下限：支持 0.00005~0.01（新增10个更低档位） */
     } catch (e) {
         return DEFAULT_LR;
     }
@@ -138,6 +138,9 @@ export function loadWeights() {
             for (let i = 0; i < W4.length; i++) W4[i] = 0;
             for (let i = 0; i < B4.length; i++) B4[i] = 0;
         }
+        /* ★ 加载残差投影（旧存档没有则重用当前/随机，避免 NaN 崩坏） */
+        W_proj1 = (obj.pr1 && _decodeInt8(obj.pr1).length === IN_DIM * HID1_DIM) ? _decodeInt8(obj.pr1) : (W_proj1 || _initRandomPrj());
+        W_proj2 = (obj.pr2 && _decodeInt8(obj.pr2).length === HID1_DIM * HID2_DIM) ? _decodeInt8(obj.pr2) : (W_proj2 || _initRandomPrj());
         META.trained = obj.trained || 0;
         META.accuracy = obj.accuracy || 0;
         META.ready = !!obj.ready;
@@ -153,6 +156,7 @@ export function saveWeights() {
             w2: _encodeInt8(W2), b2: _encodeInt8(B2),
             w3: _encodeInt8(W3), b3: _encodeInt8(B3),
             w4: _encodeInt8(W4), b4: _encodeInt8(B4),  /* ★ 保存Critic头 */
+            pr1: _encodeInt8(W_proj1), pr2: _encodeInt8(W_proj2),  /* ★ 保存残差投影（开启 useResidual 时训练所得） */
             trained: META.trained, accuracy: META.accuracy, ready: META.ready,
         };
         localStorage.setItem(STORE_KEY, JSON.stringify(obj));
@@ -186,6 +190,7 @@ export function forward(features, outBuf) {
     try {
         if (!W1 || !features) return null;
         const I = IN_DIM, H1 = HID1_DIM, H2 = HID2_DIM, O = OUT_DIM;
+        const useRes = (typeof cfg === 'function') ? cfg('useResidual', false) : false;  /* ★ 修复：此前 useRes 未声明导致 ReferenceError → 校验准确率恒为0 */
         
         /* 第一层：130 → 128 */
         const hidden1 = new Float32Array(H1);
@@ -213,6 +218,9 @@ export function forward(features, outBuf) {
             let sum = 0;
             const base = j * H1;
             for (let i = 0; i < H1; i++) sum += W2[base + i] * hidden1[i];
+            if (useRes) {
+                for (let i = 0; i < H1; i++) sum += W_proj2[base + i] * hidden1[i];
+            }
             hidden2[j] = (sum + B2[j] * SCALE) / SCALE;
         }
         for (let j = 0; j < H2; j++) hidden2[j] = gelu(hidden2[j]);  /* GELU 激活函数 */
@@ -244,6 +252,7 @@ export function forwardWithValue(features) {
     try {
         if (!W1 || !features) return null;
         const I = IN_DIM, H1 = HID1_DIM, H2 = HID2_DIM, O = OUT_DIM;
+        const useRes = (typeof cfg === 'function') ? cfg('useResidual', false) : false;
         
         /* 第一层：130 → 128 */
         const hidden1 = new Float32Array(H1);
@@ -251,6 +260,9 @@ export function forwardWithValue(features) {
             let sum = 0;
             const base = j * I;
             for (let i = 0; i < I; i++) sum += W1[base + i] * features[i];
+            if (useRes) {
+                for (let i = 0; i < I; i++) sum += W_proj1[base + i] * features[i];
+            }
             hidden1[j] = (sum + B1[j] * SCALE) / SCALE;
         }
         for (let j = 0; j < H1; j++) hidden1[j] = gelu(hidden1[j]);
@@ -271,6 +283,9 @@ export function forwardWithValue(features) {
             let sum = 0;
             const base = j * H1;
             for (let i = 0; i < H1; i++) sum += W2[base + i] * hidden1[i];
+            if (useRes) {
+                for (let i = 0; i < H1; i++) sum += W_proj2[base + i] * hidden1[i];
+            }
             hidden2[j] = (sum + B2[j] * SCALE) / SCALE;
         }
         for (let j = 0; j < H2; j++) hidden2[j] = gelu(hidden2[j]);
@@ -308,6 +323,86 @@ export function forwardWithValue(features) {
     } catch (e) { return null; }
 }
 
+/* ---------- 推理专用前向（复用 scratch 缓冲区，降低手机端每决策的分配/GC压力） ----------
+ * ★ 性能优化：predict() 每决策会被模型融合循环调用最多 15 次，
+ * 原 forwardWithValue 每次都 new 隐藏层数组，造成大量小数组分配 + GC。
+ * 这里等价复现 forwardWithValue 的精确数值（GELU + 双层 LayerNorm + /SCALE），
+ * 仅复用静态隐藏/输出缓冲区。训练路径仍用独立分配的 forwardWithValue，行为完全不变。 */
+let _sH1 = new Float32Array(0);
+let _sH2 = new Float32Array(0);
+let _sA = new Float32Array(0);
+function forwardFastWithValue(features) {
+    try {
+        if (!W1 || !features) return null;
+        const I = IN_DIM, H1 = HID1_DIM, H2 = HID2_DIM, O = OUT_DIM;
+        const useRes = (typeof cfg === 'function') ? cfg('useResidual', false) : false;
+        if (_sH1.length !== H1) _sH1 = new Float32Array(H1);
+        if (_sH2.length !== H2) _sH2 = new Float32Array(H2);
+        if (_sA.length !== O) _sA = new Float32Array(O);
+        const hidden1 = _sH1, hidden2 = _sH2;
+
+        /* 第一层：130 → 128 */
+        for (let j = 0; j < H1; j++) {
+            let sum = 0;
+            const base = j * I;
+            for (let i = 0; i < I; i++) sum += W1[base + i] * features[i];
+            if (useRes) {
+                for (let i = 0; i < I; i++) sum += W_proj1[base + i] * features[i];
+            }
+            hidden1[j] = gelu((sum + B1[j] * SCALE) / SCALE);
+        }
+        /* Layer Normalization（第一层，与 forwardWithValue 同等精度） */
+        let mean1 = 0;
+        for (let j = 0; j < H1; j++) mean1 += hidden1[j];
+        mean1 /= H1;
+        let var1 = 0;
+        for (let j = 0; j < H1; j++) var1 += (hidden1[j] - mean1) * (hidden1[j] - mean1);
+        var1 /= H1;
+        const std1 = Math.sqrt(var1 + 1e-8);
+        for (let j = 0; j < H1; j++) hidden1[j] = (hidden1[j] - mean1) / std1;
+
+        /* 第二层：128 → 64 */
+        for (let j = 0; j < H2; j++) {
+            let sum = 0;
+            const base = j * H1;
+            for (let i = 0; i < H1; i++) sum += W2[base + i] * hidden1[i];
+            if (useRes) {
+                for (let i = 0; i < H1; i++) sum += W_proj2[base + i] * hidden1[i];
+            }
+            hidden2[j] = gelu((sum + B2[j] * SCALE) / SCALE);
+        }
+        /* Layer Normalization（第二层） */
+        let mean2 = 0;
+        for (let j = 0; j < H2; j++) mean2 += hidden2[j];
+        mean2 /= H2;
+        let var2 = 0;
+        for (let j = 0; j < H2; j++) var2 += (hidden2[j] - mean2) * (hidden2[j] - mean2);
+        var2 /= H2;
+        const std2 = Math.sqrt(var2 + 1e-8);
+        for (let j = 0; j < H2; j++) hidden2[j] = (hidden2[j] - mean2) / std2;
+
+        /* ============== 残差短接：若开启，加一层浅残差（hidden2 直连输出前的轻量补偿） ==============
+         * 可选「残差块」：把 hidden2 与 hidden1 的粗粒度均值做残差补偿，仅当 useResidual 时叠加。
+         * 这里采用最稳形式：输出层前不再另加投影（避免多余矩阵），保守为空实现。
+         * 残差生效由 W_proj1/W_proj2 已在前两层独立叠加保证，推理与训练同口径。 */
+
+        /* Actor头：64 → 6 */
+        for (let k = 0; k < O; k++) {
+            let sum = 0;
+            const base = k * H2;
+            for (let j = 0; j < H2; j++) sum += W3[base + j] * hidden2[j];
+            _sA[k] = (sum + B3[k] * SCALE) / SCALE;
+        }
+
+        /* Critic头：64 → 1，Tanh 压缩到 [-1, 1] */
+        let valueRaw = 0;
+        for (let j = 0; j < H2; j++) valueRaw += W4[j] * hidden2[j];
+        valueRaw = (valueRaw + B4[0] * SCALE) / SCALE;
+
+        return { actorLogits: _sA, value: Math.tanh(valueRaw) };
+    } catch (e) { return null; }
+}
+
 /* ---------- softmax ---------- */
 export function softmax(logits) {
     if (!logits || !logits.length) return [];
@@ -331,34 +426,49 @@ export function trainOne(features, labelIdx, lr) {
         const I = IN_DIM, H1 = HID1_DIM, H2 = HID2_DIM, O = OUT_DIM;
         lr = currentLR;  /* 使用衰减后的学习率 */
         
-        /* 前向传播（ResNet 残差连接可开关，默认关闭） */
+        /* ★ 前向传播统一采用与推理一致的主几何（GELU + LayerNorm），
+         * 避免 ReLU/残差 几何污染主模型。若开启 useResidual 则叠加 W_proj1 投影，与推理保持同口径。 */
         const useRes = (typeof cfg === 'function') ? cfg('useResidual', false) : false;  /* ★ 读取残差开关，默认关闭 */
         const hidden1 = new Float32Array(H1);
         for (let j = 0; j < H1; j++) {
             let sum = 0;
             const base = j * I;
-            /* 主路径：W1 * x + B1 */
             for (let i = 0; i < I; i++) sum += (W1[base + i] / SCALE) * (features[i] / 127);
             sum += B1[j] / SCALE;
-            /* ★ 残差连接：如果开启才加 */
             if (useRes) {
                 for (let i = 0; i < I; i++) sum += (W_proj1[base + i] / SCALE) * (features[i] / 127);
             }
-            hidden1[j] = sum > 0 ? sum : 0;  /* ReLU 激活 */
+            hidden1[j] = gelu(sum);
         }
+        /* Layer Normalization（第一层，与推理 forwardWithValue 对齐） */
+        let m1 = 0;
+        for (let j = 0; j < H1; j++) m1 += hidden1[j];
+        m1 /= H1;
+        let v1 = 0;
+        for (let j = 0; j < H1; j++) v1 += (hidden1[j] - m1) * (hidden1[j] - m1);
+        v1 /= H1;
+        const s1 = Math.sqrt(v1 + 1e-8);
+        for (let j = 0; j < H1; j++) hidden1[j] = (hidden1[j] - m1) / s1;
         const hidden2 = new Float32Array(H2);
         for (let j = 0; j < H2; j++) {
             let sum = 0;
             const base = j * H1;
-            /* 主路径：W2 * hidden1 + B2 */
             for (let i = 0; i < H1; i++) sum += (W2[base + i] / SCALE) * hidden1[i];
             sum += B2[j] / SCALE;
-            /* ★ 残差连接：如果开启才加 */
             if (useRes) {
                 for (let i = 0; i < H1; i++) sum += (W_proj2[base + i] / SCALE) * hidden1[i];
             }
-            hidden2[j] = sum > 0 ? sum : 0;  /* ReLU 激活 */
+            hidden2[j] = gelu(sum);
         }
+        /* Layer Normalization（第二层，与推理 forwardWithValue 对齐） */
+        let m2 = 0;
+        for (let j = 0; j < H2; j++) m2 += hidden2[j];
+        m2 /= H2;
+        let v2 = 0;
+        for (let j = 0; j < H2; j++) v2 += (hidden2[j] - m2) * (hidden2[j] - m2);
+        v2 /= H2;
+        const s2 = Math.sqrt(v2 + 1e-8);
+        for (let j = 0; j < H2; j++) hidden2[j] = (hidden2[j] - m2) / s2;
         const logits = new Float32Array(O);
         for (let k = 0; k < O; k++) {
             let sum = 0;
@@ -377,14 +487,14 @@ export function trainOne(features, labelIdx, lr) {
         for (let j = 0; j < H2; j++) {
             let sum = 0;
             for (let k = 0; k < O; k++) sum += dLogits[k] * (W3[k * H2 + j] / SCALE);
-            dHidden2[j] = hidden2[j] > 0 ? sum : 0;
+            dHidden2[j] = sum;  /* GELU+LayerNorm 几何：移除 ReLU 掩码，保持与推理梯度一致 */
         }
         
         const dHidden1 = new Float32Array(H1);
         for (let j = 0; j < H1; j++) {
             let sum = 0;
             for (let k = 0; k < H2; k++) sum += dHidden2[k] * (W2[k * H1 + j] / SCALE);
-            dHidden1[j] = hidden1[j] > 0 ? sum : 0;
+            dHidden1[j] = sum;  /* 同上：移除 ReLU 掩码 */
         }
         
         /* ★ AdamW 优化器：时间步+1 */
@@ -486,8 +596,9 @@ export function trainOneWithValue(features, labelIdx, valueTarget, lr) {
     if (!features || labelIdx < 0 || labelIdx >= OUT_DIM) return false;
     try {
         const I = IN_DIM, H1 = HID1_DIM, H2 = HID2_DIM, O = OUT_DIM;
-        lr = currentLR;
-        
+        /* 3.1：优先采用调度器传入的 lr；未传/非法时才回退到 currentLR */
+        if (!(typeof lr === 'number' && isFinite(lr) && lr > 0)) lr = currentLR;
+
         /* 前向传播 */
         const result = forwardWithValue(features);
         if (!result) return false;
@@ -572,6 +683,9 @@ export function getBias()    { return B1; }
 export function isReady()    { return !!META.ready; }
 export function getAccuracy() { return META.accuracy; }
 export function setAccuracy(a) { META.accuracy = a; }
+/* ★ 3.1 封测：供训练器做学习率调度（余弦退火），只写正有限数 */
+export function setTrainLR(x) { if (typeof x === 'number' && isFinite(x) && x > 0) currentLR = x; }
+export function getCurrentLR() { return currentLR; }
 export function markReady(ok) { META.ready = !!ok; saveWeights(); }
 export function getTrained() { return META.trained; }
 export function getMeta()    { return Object.assign({}, META); }
@@ -595,8 +709,8 @@ export function predict(features) {
         /* ★ 调试日志 */
         try { console.log('[weights] W1长度=' + (W1 ? W1.length : 'null') + ', features长度=' + (features ? features.length : 'null')); } catch(e) {}
         
-        /* ★ 用forwardWithValue同时获取Actor概率和Critic价值 */
-        const result = forwardWithValue(features);
+        /* ★ 用复用缓冲的推理快速前向，同时获取Actor概率和Critic价值 */
+        const result = forwardFastWithValue(features);
         try { console.log('[weights] forwardWithValue结果: ' + (result ? '有actorLogits=' + (result.actorLogits ? result.actorLogits.length : 'null') : 'null')); } catch(e) {}
         
         if (!result || !result.actorLogits) return fallback;

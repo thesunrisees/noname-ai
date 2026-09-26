@@ -11,7 +11,7 @@
 
 import { getSamples } from './trainExport.js';
 import { FEATURE_DIM } from './features.js';
-import { trainOne, trainOneWithValue, saveWeights, setAccuracy, markReady, getMeta, forward } from './weights.js';
+import { trainOne, trainOneWithValue, saveWeights, setAccuracy, markReady, getMeta, forward, setTrainLR } from './weights.js';
 import { cfg } from './util.js';  /* ★ 导入配置读取函数 */
 // Автор: Фэйшэн Оригинал | Лицензия: GPL-3.0
 
@@ -146,15 +146,29 @@ function _train() {
     const valN = Math.max(20, (n * VAL_RATIO) | 0);
     const trN = n - valN;
 
-    /* ★ 多层网络训练：用 trainOneWithValue 做反向传播（同时训练Actor和Critic） */
+    /* ★ 三层网络训练：用 trainOneWithValue 做反向传播（同时训练Actor和Critic）
+     * 3.1 封测：
+     *  ─ 余弦退火学习率：epoch 从 baseLR 平滑衰减到 10% baseLR，后期收敛更稳不震荡
+     *  ─ 回放样本按 count 加权（频率越高重复越多，封顶 3 次），交易过拟合
+     */
+    const baseLR = lr;
     for (let epoch = 0; epoch < EPOCHS; epoch++) {
+        /* ★ 学习率调度（余弦退火）：coef 1→0，epochLR 落在 [baseLR*0.1, baseLR] */
+        const coef = 0.5 * (1 + Math.cos(Math.PI * epoch / EPOCHS));
+        const epochLR = baseLR * (0.1 + 0.9 * coef);
+        setTrainLR(epochLR);
         let mistakes = 0;
         for (let i = 0; i < trN; i++) {
             const src = idx[i];
             const off = src * dim;
             const feat = new Int8Array(dim);
             for (let j = 0; j < dim; j++) feat[j] = X[off + j];
-            trainOneWithValue(feat, Y[src], V[src], lr);  /* ★ 传入value_target */
+            /* ★ 3.1：回放优先级——count 越高的样本重复训练越多（封顶 3），
+             * 与上方 Mini-Batch 分支的封顶策略保持一致 */
+            const rep = Math.min(1 + ((samples[src].count || 1) >> 1), 3);
+            for (let rc = 0; rc < rep; rc++) {
+                trainOneWithValue(feat, Y[src], V[src], epochLR);  /* 传入 value_target */
+            }
         }
 
         /* 验证集准确率 */
@@ -180,6 +194,9 @@ function _train() {
             try { console.log('[训练] epoch=' + epoch + ' acc=' + (acc * 100).toFixed(1) + '%'); } catch (e) {}
         }
     }
+
+    /* 3.1：训练结束恢复基准学习率，避免调度残留影响后续在线 trainOne */
+    setTrainLR(baseLR);
 
     /* ★ 保存权重 */
     /* 在循环外面重新算一次最终准确率 */

@@ -96,6 +96,8 @@ export function installScoreEngine() {
 	try { import('./globalScanner.js').then(function (m) { try { m.installProbes(); } catch (e) {} }).catch(function () {}); } catch (e) {}
 	/* ★ 决策点观测面板 */
 	try { import('./decisionDashboard.js').catch(function () {}); } catch (e) {}
+	/* ★ 全量自检指令（window.__DJSC.verifyAll） */
+	try { import('./verifyAll.js').catch(function () {}); } catch (e) {}
 
 	/* ★ 补全接口挂载到 window.__DJSC */
 	try {

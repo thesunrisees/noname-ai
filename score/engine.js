@@ -2886,7 +2886,15 @@ function bestAction() {
 							calibTrust = window.__DJSC.calibrator.modelTrust();
 						}
 					} catch (e) {}
-					const wModel = Math.max(0.02, Math.min(0.3, baseW - calibTrust));
+					/* ★ AI 强度档位：缩放模型对决策的影响力（不砍规则/战术层，只调模型强度）
+					 *   极弱≈纯规则、弱→明显放水、中→平衡、强→全力、极强→近乎完美 */
+					let strengthFactor = 1.0;
+					try {
+						const _tier = String(cfg('aiStrength', '中') || '中');
+						const _tierMap = { '极弱': 0.0, '弱': 0.3, '中': 1.0, '强': 1.6, '极强': 2.0 };
+						strengthFactor = (typeof _tierMap[_tier] === 'number') ? _tierMap[_tier] : 1.0;
+					} catch (e) {}
+					const wModel = Math.max(0.02, Math.min(0.3, (baseW - calibTrust) * Math.max(0.0, strengthFactor)));
 					if (true) { // 强制允许模型接管，不管置信度多低
 						let _takeoverCount = 0;  /* ★ 统计本轮接管次数 */
 						let _lastMLog = '';
@@ -2897,7 +2905,8 @@ function bestAction() {
 							if (!a._feat) continue;
 							_fa.fill(0);
 							for (let j = 0; j < FEATURE_DIM && j < a._feat.length; j++) _fa[j] = a._feat[j];
-							const sub = window.__DJSC.confidence(_fa);
+							/* ★ 性能优化：best 已在上面算过 modelConf，直接复用，省一次整网预测 */
+							const sub = (a === best && modelConf && modelConf.action) ? modelConf : window.__DJSC.confidence(_fa);
 							if (!sub) continue;
 							const modelStrength = (sub.probs ? Math.max.apply(null, sub.probs) : 0) * 32;
 							a.score = Math.round(a.score * (1 - wModel) + modelStrength * wModel);

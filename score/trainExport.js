@@ -326,6 +326,7 @@ export function trainRecordSample(me, best, sit, score, features) {
             id: best.id || '',
             score: Math.round(score || 0),
             conf: (best && best._conf && !isNaN(best._conf)) ? best._conf : 0.3,  /* ★ 存置信度 */
+			source: 'real',
             violation: violation,
             violationType: violationInfo ? violationInfo.type : null,
             violationCard: violationInfo ? violationInfo.card : null,
@@ -336,16 +337,30 @@ export function trainRecordSample(me, best, sit, score, features) {
 
 export function trainSettleGame(me, won) {
     try {
-        /* ★ 游戏结束：批量回填本局所有样本的value_target */
-        const target = won ? 1.0 : -1.0;
-        let updated = 0;
+        /* ★ 3.1 封测：用 TD(γ) 时序差分价值回填，取代"全样本统一 ±1"的粗标签。
+         * 每决策价值 = 即时奖励(r 归一化) + γ × 下一决策价值；
+         * 终态价值用游戏胜负(±1)吸收。这样同一局里"关键/失误"决策能被区分。 */
+        const outcome = won ? 1.0 : -1.0;
+        const GAMMA = 0.9;               /* TD 折扣因子 */
+        const CLIP_D = 147;              /* 用于归一化 r 的最大分（r 约 -127..127） */
+        const cutoff = Date.now() - 5 * 60 * 1000;  /* 5 分钟视为本局样本（与原逻辑一致） */
+
+        const idx = [];
         for (let i = 0; i < BUFFER.length; i++) {
-            /* 只回填本局的样本（用时间戳判断：最近5分钟内的） */
-            const age = Date.now() - (BUFFER[i].ts || 0);
-            if (age < 5 * 60 * 1000) {  /* 5分钟内的样本认为是本局的 */
-                BUFFER[i].value_target = target;
-                updated++;
-            }
+            if ((BUFFER[i].ts || 0) >= cutoff) idx.push(i);
+        }
+        if (idx.length === 0) return;
+
+        let nextV = outcome;   /* 终态价值 = 胜负结果 */
+        let updated = 0;
+        for (let i = idx.length - 1; i >= 0; i--) {   /* 从最近往最早倒推 */
+            const s = BUFFER[idx[i]];
+            const normR = _clampR((s.r || 0) / CLIP_D, -1, 1);  /* 每个决策的即时奖励 */
+            const target = normR + GAMMA * nextV;
+            const v = _clampR(target, -1, 1);
+            s.value_target = v;     /* ★ 覆盖为 TD 目标 */
+            nextV = v;
+            updated++;
         }
         if (updated > 0) {
             saveToStorage();
@@ -353,6 +368,9 @@ export function trainSettleGame(me, won) {
         _gameStart = null;
     } catch (e) {}
 }
+
+/* 局部 clamp 工具（不改其它文件的语义） */
+function _clampR(v, lo, hi) { return v > hi ? hi : (v < lo ? lo : v); }
 
 /* ================= 面板接口 ================= */
 export function trainClearBuffer() {

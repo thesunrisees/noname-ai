@@ -15,7 +15,7 @@ export function arrangeConfig(source, lib, game) {
         ['tactics', '二、决策与战术', ['responseAI', 'compareAI', 'broadcastAI', 'enablePlanner', 'psychologyLayer', 'comboChain', 'deckAwareness', 'deckConsumeAllPlayers', 'openPlanPanel', 'openRecommendPanel']],
         ['override', '三、原生 AI 接管', ['hardOverride', 'override_use', 'override_respond', 'override_discard', 'override_compare', 'openOverridePanel']],
         ['memory', '四、记忆与反馈', ['decisionFeedback', 'skillFeedback', 'styleFeedback', 'crossGameMemory', 'playerMemory', 'openMemoryPanel']],
-        ['training', '五、模型与训练', ['useTrainedModel', 'useResidual', 'learningRate', 'forceTrain', 'showSampleCount', 'showModelStatus', 'autoFixModel']],
+        ['training', '五、模型与训练', ['useTrainedModel', 'aiStrength', 'useResidual', 'learningRate', 'forceTrain', 'showSampleCount', 'showModelStatus', 'autoFixModel']],
         ['report', '六、战报与分析', ['showReport', 'archiveGames', 'showLog', 'persist', 'narrator', 'openPanel', 'openArchivePanel', 'openSkillPanel', 'openSkillBreakdownPanel', 'openFeedbackPanel', 'openReplayPanel', 'openComparePanel', 'openNarratorPanel', 'openSmartPanel']],
         ['data', '七、数据管理', ['exportTrainingData', 'importTrainingData', 'exportAllData', 'importOverwrite', 'importMerge', 'openExportPanel', 'quickExportAll', 'clearSamples']],
         ['diagnostics', '八、高级与诊断', ['openHotSwapPanel', 'openSharedPanel', 'openEvolutionPanel', 'openBrainDashboard', 'openDecisionDashboard', 'openCalibratorPanel', 'profiler', 'openProfilerPanel', 'openHealthPanel', 'openSelfCheck', 'openGuardPanel', 'openPostCheckPanel', 'openPsychologyMonitor', 'openComboMonitor', 'openMemoryMonitor', 'openAutoFeatureMonitor', 'openSoftMetricsMonitor', 'openPostCheckMonitor', 'openProfilerMonitor', 'openTrainBufferMonitor', 'openFullMonitor']],
@@ -60,6 +60,7 @@ export function arrangeConfig(source, lib, game) {
 
         // ===== 模型与训练 =====
         useTrainedModel: '启用训练好的神经网络模型，开启后AI会用学到的经验做决策。',
+        aiStrength: 'AI强度档位：直接缩放模型对决策的影响力。选"弱/极弱"能明显降低AI正确率，打得菜一点；中为平衡；强/极强全力发挥。',
         useResidual: '残差连接开关，开启后神经网络更深，学习能力更强，但更耗性能。',
         learningRate: '学习效率，数值越大学得越快但容易过拟合，数值越小学得越稳但慢。',
         forceTrain: '强制训练按钮，手动触发一次模型训练，把积累的样本学进去。',
