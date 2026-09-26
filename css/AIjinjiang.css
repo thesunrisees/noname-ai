@@ -1,0 +1,766 @@
+/* 折叠面板通用样式 */
+.config_more {
+	width: 90%;
+	margin: 0 auto;
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+}
+
+/* 开关类功能样式（开关+名称一行居中） */
+.switch-item {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 15px;
+	background-color: rgba(0, 0, 0, 0.05);
+	border-radius: 8px;
+}
+
+.switch-header {
+	display: flex;
+	align-items: center;
+	gap: 15px;
+	margin-bottom: 8px;
+}
+
+/* 链接类功能样式（名称、简介、按钮各自居中） */
+.link-item {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	margin: 25px 0;
+	padding: 15px;
+	background-color: rgba(0, 0, 0, 0.05);
+	border-radius: 8px;
+}
+
+/* 功能名称样式 */
+.config_name {
+	font-size: 18px;
+	font-weight: 500;
+}
+
+/* 简介样式（居中独占一行） */
+.config_intro {
+	text-align: center;
+	width: 100%;
+	line-height: 1.3;
+	color: white;
+	;
+}
+
+/* 按钮样式（居中独占一行） */
+.config_button {
+	margin-top: 12px;
+	padding: 6px 20px;
+	border: none;
+	border-radius: 6px;
+	cursor: pointer;
+	font-family: 'yuanli';
+	font-size: 14px;
+	transition: all 0.3s ease;
+}
+
+/* 区分按钮颜色 */
+.link-item .config_button:nth-child(3) {
+	background-color: #1E90FF;
+	color: white;
+}
+
+.link-item .config_button:nth-child(3):hover {
+	background-color: #0066CC;
+}
+
+.link-item .config_button:nth-child(6) {
+	background-color: #1E90FF;
+	color: white;
+}
+
+.link-item .config_button:nth-child(6):hover {
+	background-color: #0066CC;
+}
+
+.link-item .config_button:last-child {
+	background-color: transparent;
+	color: #FF3300;
+	text-decoration: underline;
+	text-underline-offset: 4px;
+	text-decoration-thickness: 1.5px;
+	padding: 4px 16px;
+	font-weight: 500;
+}
+
+.link-item .config_button:last-child:hover {
+	color: #CC2A00;
+	text-decoration-color: #CC2A00;
+	background-color: rgba(255, 51, 0, 0.05);
+}
+
+.config_switch {
+	position: relative;
+	display: inline-block;
+	width: 50px;
+	height: 24px;
+}
+
+.config_switch input {
+	opacity: 0;
+	width: 0;
+	height: 0;
+}
+
+.config_slider {
+	position: absolute;
+	cursor: pointer;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: #ccc;
+	transition: .4s;
+	border-radius: 24px;
+}
+
+.config_slider:before {
+	position: absolute;
+	content: "";
+	height: 16px;
+	width: 16px;
+	left: 4px;
+	bottom: 4px;
+	background-color: white;
+	transition: .4s;
+	border-radius: 50%;
+}
+
+input:checked+.config_slider {
+	background-color: #32CD32;
+}
+
+input:checked+.config_slider:before {
+	transform: translateX(26px);
+}
+/* ================= 手机端适配 ================= */
+@media (max-width: 768px) {
+    .config_more {
+        width: 96%;
+        gap: 12px;
+    }
+    .switch-item,
+    .link-item {
+        padding: 12px 8px;
+        margin: 12px 0;
+    }
+    .config_name {
+        font-size: 16px;
+    }
+    .config_intro {
+        font-size: 13px;
+        line-height: 1.6;
+    }
+    .config_button {
+        padding: 8px 18px;
+        font-size: 14px;
+        min-height: 36px;
+        touch-action: manipulation;
+    }
+    .config_switch {
+        width: 56px;
+        height: 28px;
+    }
+    .config_slider:before {
+        height: 20px;
+        width: 20px;
+        left: 4px;
+        bottom: 4px;
+    }
+    input:checked + .config_slider:before {
+        transform: translateX(28px);
+    }
+}
+
+/* ================= 决策面板手机端 ================= */
+@media (max-width: 768px) {
+    .dialog.fullheight[data-djsc-panel="1"] {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        z-index: 99999 !important;
+        overflow: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    .dialog.fullheight[data-djsc-panel="1"] div {
+        word-break: break-all;
+    }
+    .dialog.fullheight[data-djsc-panel="1"] .djsc-btn {
+        min-height: 32px;
+        min-width: 40px;
+        touch-action: manipulation;
+    }
+    .dialog.fullheight[data-djsc-panel="1"] svg {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+}
+
+/* 共用信息弹窗：约束本体绝对定位样式，避免内容挤成左侧窄列。 */
+.djsc-utility-panel {
+    position: fixed !important;
+    inset: 5% auto auto 50% !important;
+    transform: translateX(-50%) !important;
+    width: min(960px, 94%) !important;
+    height: 90% !important;
+    max-width: 94% !important;
+    max-height: 90% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 18px 22px 70px !important;
+    box-sizing: border-box !important;
+    overflow: auto !important;
+    border: 1px solid rgba(170,200,220,.5);
+    border-radius: 22px;
+    background: rgba(35,39,44,.20) !important;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 12px 48px rgba(0,0,0,.45);
+    color: #eee !important;
+    font-family: xinwei, KaiTi, serif !important;
+    font-size: 18px !important;
+    line-height: 1.6 !important;
+    text-align: left !important;
+    text-shadow: 0 1px 3px #222;
+}
+.djsc-utility-panel div, .djsc-utility-panel section,
+.djsc-utility-panel header, .djsc-utility-panel p,
+.djsc-utility-panel h3 { position: static; box-sizing: border-box; }
+.djsc-utility-panel button, .djsc-utility-panel strong,
+.djsc-utility-panel span { font-family: inherit !important; }
+.djsc-utility-panel .djsc-popup-title {
+    display: block !important; width: 100% !important;
+    margin: 0 0 16px !important; padding: 10px !important;
+    font-size: 24px !important; color: #f3e8ae !important;
+    background: transparent !important; text-align: center;
+    border-bottom: 1px solid #ffffff30;
+}
+.djsc-utility-panel h3 {
+    display: block; width: 100%; margin: 18px 0 12px; padding: 6px 14px;
+    border: 1px solid #ffffff38; border-radius: 22px;
+    background: rgba(205,202,202,.28); text-align: center;
+    font-size: 20px; font-weight: normal;
+}
+.djsc-overview-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; }
+.djsc-overview-card { padding: 12px; border: 1px solid #ffffff20; border-radius: 12px; background: #ffffff08; text-align: center; }
+.djsc-overview-card span { display: block; color: #9ad8ff; font-size: 22px; overflow-wrap: anywhere; }
+.djsc-overview-card strong { display: block; margin-top: 6px; color: #ffd479; font-size: 20px; font-weight: normal; overflow-wrap: anywhere; }
+.djsc-popup-note { font-size: 16px; color: #cbd3db; margin: 10px 0; }
+.djsc-popup-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.djsc-popup-actions button, .djsc-utility-panel .djsc-popup-close {
+    padding: 6px 14px !important; border: 1px solid #bda573 !important;
+    border-radius: 9px !important; color: #f3e8ae !important;
+    background: rgba(80,65,40,.65) !important; font-size: 18px !important;
+    cursor: pointer; box-shadow: none !important;
+}
+.djsc-utility-panel .djsc-popup-close {
+    position: sticky !important; float: right; bottom: 0 !important; right: 0 !important;
+    margin-top: 16px; z-index: 2 !important;
+}
+.djsc-utility-panel .djsc-popup-text {
+    display: block !important; width: 100% !important;
+    padding: 12px !important; margin: 0 !important;
+    background: rgba(255,255,255,.04) !important; box-shadow: none !important;
+    font-size: 18px; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.djsc-popup-text-row { display: block; min-height: .8em; }
+@media (max-width: 600px) {
+    .djsc-utility-panel { padding: 12px 12px 60px !important; }
+    .djsc-overview-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+}
+
+/* 分组设置：标题折叠，名称在左，原生开关或操作按钮在右。 */
+.djsc-settings-group {
+    display: flex !important;
+    position: relative !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    padding: 8px 14px !important;
+    box-sizing: border-box !important;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,.22);
+    background: rgba(205,202,202,.28);
+    font-family: "xinwei", "KaiTi", serif !important;
+    font-size: 20px;
+    cursor: pointer;
+}
+.djsc-settings-arrow { font-size: 14px !important; }
+.config:has(.djsc-settings-group),
+.config:has(.djsc-setting-action-row) {
+    display: block;
+    height: auto !important;
+    min-height: 34px;
+    margin: 6px 0 !important;
+    padding: 0 6px !important;
+    box-sizing: border-box !important;
+}
+.config:has(.djsc-settings-group) > span,
+.config:has(.djsc-setting-action-row) > span {
+    display: block !important;
+    width: 100% !important;
+}
+.djsc-setting-action-row {
+    display: flex !important;
+    position: relative !important;
+    width: 100% !important;
+    gap: 12px;
+    align-items: center !important;
+    justify-content: space-between !important;
+    box-sizing: border-box;
+    padding: 3px 18px 3px 8px;
+}
+.djsc-setting-name {
+    display: inline-block;
+    font-family: "xinwei", "KaiTi", serif !important;
+    font-size: 18px !important;
+    line-height: 1.5 !important;
+    text-align: left !important;
+    white-space: normal !important;
+}
+.config.toggle:has(.djsc-setting-name),
+.config.switcher:has(.djsc-setting-name) {
+    height: auto !important;
+    min-height: 34px !important;
+    padding: 6px 120px 6px 14px !important;
+    box-sizing: border-box !important;
+}
+.config.toggle:has(.djsc-setting-name) > div,
+.config.switcher:has(.djsc-setting-name) > div {
+    right: 24px !important;
+    left: auto !important;
+    margin-right: 0 !important;
+}
+.djsc-setting-action {
+    flex: 0 0 62px;
+    width: 62px;
+    height: 29px;
+    padding: 0 10px;
+    border: 1px solid rgba(236,213,158,.65);
+    border-radius: 5px;
+    color: #f3e8ae;
+    background: rgba(60,43,26,.7);
+    font: 15px "xinwei", "KaiTi", serif;
+    cursor: pointer;
+}
+.djsc-setting-action:hover { background: rgba(139,105,57,.65); }
+.djsc-setting-action { white-space: nowrap !important; }
+.djsc-setting-action.djsc-copy-result { font-size: 12px !important; padding: 0 4px !important; }
+.djsc-html-body { width: 100%; min-width: 0; overflow-wrap: anywhere; }
+.djsc-main-grid { display: grid !important; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; width: 100%; }
+.djsc-main-entry { position: static !important; display: block !important; width: 100%; min-width: 0; height: auto !important; padding: 14px; border: 1px solid #ffffff38; border-radius: 14px; background: rgba(205,202,202,.18); color: #eee; text-align: left; cursor: pointer; white-space: normal; }
+.djsc-main-entry b { display: block; color: #f3e8ae; font-size: 22px; font-weight: normal; }
+.djsc-main-entry span { display: block; margin-top: 5px; color: #cbd3db; font-size: 16px; }
+@media (max-width: 600px) { .djsc-main-grid { grid-template-columns: minmax(0,1fr); } }
+.config:has(.djsc-settings-group[data-group="basic"][data-open="false"]) ~ .config:has(.djsc-setting-name[data-group="basic"]),
+.config:has(.djsc-settings-group[data-group="tactics"][data-open="false"]) ~ .config:has(.djsc-setting-name[data-group="tactics"]),
+.config:has(.djsc-settings-group[data-group="override"][data-open="false"]) ~ .config:has(.djsc-setting-name[data-group="override"]),
+.config:has(.djsc-settings-group[data-group="memory"][data-open="false"]) ~ .config:has(.djsc-setting-name[data-group="memory"]),
+.config:has(.djsc-settings-group[data-group="training"][data-open="false"]) ~ .config:has(.djsc-setting-name[data-group="training"]),
+.config:has(.djsc-settings-group[data-group="report"][data-open="false"]) ~ .config:has(.djsc-setting-name[data-group="report"]),
+.config:has(.djsc-settings-group[data-group="data"][data-open="false"]) ~ .config:has(.djsc-setting-name[data-group="data"]),
+.config:has(.djsc-settings-group[data-group="diagnostics"][data-open="false"]) ~ .config:has(.djsc-setting-name[data-group="diagnostics"]) {
+    display: none !important;
+}
+
+/* ================= 配置页紧凑按钮 ================= */
+.config:has(.djsc-menu-config-btn),
+.config:has(.djsc-config-section-title) {
+    display: block !important;
+    height: auto !important;
+    min-height: 34px !important;
+    margin: 5px 0 !important;
+    padding: 0 6px !important;
+    box-sizing: border-box !important;
+}
+.config:has(.djsc-menu-config-btn) > span,
+.config:has(.djsc-config-section-title) > span {
+    display: block !important;
+    width: 100% !important;
+    position: relative !important;
+}
+.djsc-config-section-title {
+    width: calc(100% - 12px);
+    min-height: 32px;
+    margin: 4px 6px 7px;
+    padding: 4px 16px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f5f5f5;
+    font-size: 16px;
+    font-family: "xinwei", "STXinwei", "KaiTi", serif !important;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 18px;
+    background: rgba(210, 207, 207, 0.42);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.djsc-menu-config-btn {
+    width: 100% !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    padding: 0 16px !important;
+    text-align: center;
+    font-size: 14px !important;
+    font-weight: 600;
+    font-family: "xinwei", "STXinwei", "KaiTi", serif !important;
+    color: #f7f7f7 !important;
+    background: rgba(205, 202, 202, 0.30) !important;
+    border: 1px solid rgba(255, 255, 255, 0.20) !important;
+    border-radius: 18px !important;
+    cursor: pointer;
+    margin: 2px 0 !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+    transition: all 0.2s ease;
+}
+.djsc-menu-config-btn:hover {
+    background: rgba(225, 222, 222, 0.42) !important;
+    border-color: rgba(255, 255, 255, 0.34) !important;
+    transform: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+}
+.djsc-menu-config-btn:active {
+    background: rgba(175, 172, 172, 0.40) !important;
+    transform: scale(0.995);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.28) !important;
+}
+
+/* 这些条目本身就是点击按钮，不再显示右侧“开/关”开关。 */
+.config:has(.djsc-menu-config-btn) > .switcher,
+.config:has(.djsc-menu-config-btn) .config_switch {
+    display: none !important;
+}
+
+/* ================= 对局战报：独立布局，避免游戏 dialog 的绝对定位造成叠字 ================= */
+.dialog.djsc-report-dialog[data-djsc-report="1"] {
+    position: fixed !important;
+    left: 50% !important;
+    top: 50% !important;
+    width: min(720px, 76vw) !important;
+    max-width: 76vw !important;
+    height: min(520px, 66vh) !important;
+    max-height: 66vh !important;
+    transform: translate(-50%, -50%) !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(154, 216, 255, 0.32) !important;
+    border-radius: 16px !important;
+    background: rgba(10, 15, 24, 0.20) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    box-shadow: 0 22px 70px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+    z-index: 100000 !important;
+}
+
+.dialog.djsc-report-dialog[data-djsc-report="1"] .caption {
+    position: sticky !important;
+    z-index: 2 !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    padding: 0 58px !important;
+    box-sizing: border-box !important;
+    color: #f3e8ae !important;
+    font-size: 18px !important;
+    font-family: "xinwei", "STXinwei", "KaiTi", serif !important;
+    letter-spacing: 2px !important;
+    background: rgba(16, 25, 37, 0.20) !important;
+    border-bottom: 1px solid rgba(154, 216, 255, 0.13) !important;
+}
+
+.dialog.djsc-report-dialog[data-djsc-report="1"] > .djsc-report-scroll,
+.dialog.djsc-report-dialog[data-djsc-report="1"] > .content-container {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+.dialog.djsc-report-dialog[data-djsc-report="1"] .djsc-report-content,
+.dialog.djsc-report-dialog[data-djsc-report="1"] .content {
+    position: relative !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 100% !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 14px 18px !important;
+    box-sizing: border-box !important;
+    overflow-y: visible !important;
+    overflow-x: hidden !important;
+    display: block !important;
+}
+
+.djsc-report-body {
+    position: relative !important;
+    width: 100% !important;
+    min-height: min-content !important;
+    color: #dbe7f5 !important;
+    font-size: 12px !important;
+    font-family: "xinwei", "STXinwei", "KaiTi", serif !important;
+    line-height: 1.55 !important;
+    white-space: normal !important;
+    margin: 12px 0 0 !important;
+}
+
+.djsc-report-body,
+.djsc-report-body * {
+    box-sizing: border-box;
+    font-family: "xinwei", "STXinwei", "KaiTi", serif !important;
+}
+
+.djsc-report-body div,
+.djsc-report-body section {
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+}
+
+.djsc-report-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 9px !important;
+    width: 100% !important;
+}
+
+.djsc-report-overview {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+    margin: 0 !important;
+}
+
+.djsc-report-stat {
+    min-width: 0 !important;
+    min-height: 58px !important;
+    padding: 8px 10px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 4px !important;
+    text-align: center !important;
+    border: 1px solid rgba(154, 216, 255, 0.08);
+    border-radius: 8px !important;
+    background: rgba(255, 255, 255, 0.035) !important;
+}
+
+.djsc-report-stat-label {
+    display: block !important;
+    flex: none !important;
+    width: 100% !important;
+    color: #9ad8ff !important;
+    font-family: "xinwei", "STXinwei", "KaiTi", serif !important;
+    font-size: 11px !important;
+    font-weight: 400 !important;
+    line-height: 1.25 !important;
+    letter-spacing: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+.djsc-report-stat-value {
+    display: block !important;
+    flex: none !important;
+    margin-top: 2px !important;
+    width: 100% !important;
+    font-family: "xinwei", "STXinwei", "KaiTi", serif !important;
+    font-size: 18px !important;
+    font-weight: 700 !important;
+    line-height: 1.15 !important;
+    letter-spacing: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+.djsc-report-quality {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 7px !important;
+    width: 100% !important;
+    margin: 0 !important;
+    font-size: 12px !important;
+}
+
+.djsc-report-quality-row {
+    display: grid !important;
+    grid-template-columns: minmax(145px, 1fr) minmax(90px, 1.6fr) 48px !important;
+    align-items: center !important;
+    gap: 9px !important;
+    width: 100% !important;
+    min-height: 22px !important;
+    margin: 0 !important;
+    text-align: left !important;
+}
+
+.djsc-report-quality-row > span:nth-child(2) {
+    width: 100% !important;
+}
+
+.djsc-report-quality-row > span:last-child {
+    white-space: nowrap !important;
+    text-align: right !important;
+}
+
+.djsc-report-highlights {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #c8d8ea !important;
+    text-align: left !important;
+}
+
+.djsc-report-highlight {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 6px 8px !important;
+    border-left-width: 3px !important;
+    border-left-style: solid !important;
+    background: rgba(255, 255, 255, 0.04) !important;
+    text-align: left !important;
+}
+
+.djsc-report-section {
+    display: block !important;
+    width: 100% !important;
+    min-height: 0 !important;
+    padding: 0 0 8px !important;
+    overflow: visible !important;
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.djsc-report-section > b,
+.djsc-report-heading {
+    width: 100% !important;
+    min-height: 34px !important;
+    margin: 0 0 10px !important;
+    padding: 5px 14px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-family: "xinwei", "STXinwei", "KaiTi", serif !important;
+    font-size: 16px !important;
+    font-weight: normal !important;
+    letter-spacing: 1px;
+    color: #f2f2f2 !important;
+    border: 1px solid rgba(255, 255, 255, 0.16) !important;
+    border-radius: 18px !important;
+    background: rgba(205, 202, 202, 0.28) !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+    cursor: default !important;
+    pointer-events: none !important;
+}
+
+.djsc-report-close {
+    position: absolute !important;
+    z-index: 3 !important;
+    right: 15px !important;
+    top: 10px !important;
+    width: 34px !important;
+    height: 34px !important;
+    padding: 0 !important;
+    border: 1px solid rgba(154, 216, 255, 0.25) !important;
+    border-radius: 50% !important;
+    color: #dbe7f5 !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    font: 24px/30px sans-serif !important;
+    text-align: center !important;
+    cursor: pointer !important;
+}
+
+.djsc-report-close:hover {
+    color: #fff !important;
+    background: rgba(255, 156, 156, 0.2) !important;
+}
+
+@media (max-width: 768px) {
+    .dialog.djsc-report-dialog[data-djsc-report="1"] {
+        width: 92vw !important;
+        max-width: 92vw !important;
+        height: 74vh !important;
+        max-height: 74vh !important;
+        border-radius: 12px !important;
+    }
+    .dialog.djsc-report-dialog[data-djsc-report="1"] .caption {
+        height: 42px !important;
+        min-height: 42px !important;
+        padding: 0 48px 0 16px !important;
+        justify-content: flex-start !important;
+        font-size: 17px !important;
+        letter-spacing: 1px !important;
+    }
+    .dialog.djsc-report-dialog[data-djsc-report="1"] .djsc-report-content,
+    .dialog.djsc-report-dialog[data-djsc-report="1"] .content {
+        padding: 0 8px 14px !important;
+    }
+    .djsc-report-body { margin-top: 12px !important; }
+    .djsc-report-grid { gap: 10px !important; }
+    .djsc-report-section { padding: 9px 8px !important; }
+    .djsc-report-body { font-size: 12px !important; }
+    .djsc-report-body span { max-width: 100%; }
+    .djsc-report-overview {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 6px !important;
+    }
+    .djsc-report-stat {
+        min-height: 52px !important;
+        padding: 7px 6px !important;
+    }
+    .djsc-report-stat-value { font-size: 16px !important; }
+    .djsc-report-quality-row {
+        grid-template-columns: minmax(118px, 1fr) minmax(55px, 1fr) 40px !important;
+        gap: 5px !important;
+    }
+    .djsc-report-close {
+        right: 9px !important;
+        top: 7px !important;
+    }
+}
+
+@media (min-width: 769px) and (max-height: 620px) {
+    .dialog.djsc-report-dialog[data-djsc-report="1"] {
+        height: 72vh !important;
+        max-height: 72vh !important;
+    }
+}
